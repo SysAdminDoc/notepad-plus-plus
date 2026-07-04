@@ -42,6 +42,46 @@ enum
 	defaultPartWidth = 5,
 };
 
+static constexpr COLORREF mochaBase = 0x002e1e1e;     // #1e1e2e
+static constexpr COLORREF mochaMantle = 0x00251818;   // #181825
+static constexpr COLORREF mochaSurface0 = 0x00443231; // #313244
+static constexpr COLORREF mochaText = 0x00f4d6cd;     // #cdd6f4
+static constexpr COLORREF mochaSubtext0 = 0x00c8ada6; // #a6adc8
+static constexpr COLORREF mochaBlue = 0x00fab489;     // #89b4fa
+
+static RECT insetRect(RECT rc, int dx, int dy)
+{
+	::InflateRect(&rc, -dx, -dy);
+	if (rc.right < rc.left)
+		rc.right = rc.left;
+	if (rc.bottom < rc.top)
+		rc.bottom = rc.top;
+	return rc;
+}
+
+static void paintRoundedRect(HDC hdc, const RECT& rc, HPEN hPen, HBRUSH hBrush, int radius)
+{
+	auto holdPen = static_cast<HPEN>(::SelectObject(hdc, hPen));
+	auto holdBrush = static_cast<HBRUSH>(::SelectObject(hdc, hBrush));
+	::RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, radius, radius);
+	::SelectObject(hdc, holdBrush);
+	::SelectObject(hdc, holdPen);
+}
+
+static void paintStatusSizeGrip(HDC hdc, const RECT& rcClient, int scale)
+{
+	HPEN hGripPen = ::CreatePen(PS_SOLID, 1, mochaSubtext0);
+	auto holdPen = static_cast<HPEN>(::SelectObject(hdc, hGripPen));
+	for (int i = 0; i < 3; ++i)
+	{
+		const int offset = scale * (3 + (i * 4));
+		::MoveToEx(hdc, rcClient.right - offset, rcClient.bottom - scale, nullptr);
+		::LineTo(hdc, rcClient.right - scale, rcClient.bottom - offset);
+	}
+	::SelectObject(hdc, holdPen);
+	::DeleteObject(hGripPen);
+}
+
 
 StatusBar::~StatusBar()
 {
@@ -135,20 +175,27 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			PAINTSTRUCT ps{};
 			HDC hdc = (uMsg == WM_PAINT) ? ::BeginPaint(hWnd, &ps) : reinterpret_cast<HDC>(wParam);
 
-			struct {
-				int horizontal = 0;
-				int vertical = 0;
-				int between = 0;
-			} borders{};
-
-			::SendMessage(hWnd, SB_GETBORDERS, 0, reinterpret_cast<LPARAM>(&borders));
-
 			const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
 			bool isSizeGrip = style & SBARS_SIZEGRIP;
 
-			auto holdPen = static_cast<HPEN>(::SelectObject(hdc, NppDarkMode::getEdgePen()));
-
 			auto holdFont = static_cast<HFONT>(::SelectObject(hdc, pStatusBarInfo->_hFont));
+
+			RECT rcClient{};
+			::GetClientRect(hWnd, &rcClient);
+			HBRUSH hBaseBrush = ::CreateSolidBrush(mochaBase);
+			HBRUSH hSegmentBrush = ::CreateSolidBrush(mochaMantle);
+			HBRUSH hActiveBrush = ::CreateSolidBrush(mochaSurface0);
+			HBRUSH hAccentBrush = ::CreateSolidBrush(mochaBlue);
+			HPEN hSegmentPen = ::CreatePen(PS_SOLID, 1, mochaSurface0);
+			HPEN hActivePen = ::CreatePen(PS_SOLID, 1, mochaBlue);
+
+			::FillRect(hdc, &rcClient, hBaseBrush);
+
+			const int marginX = DPIManagerV2::scale(4, hWnd);
+			const int marginY = DPIManagerV2::scale(3, hWnd);
+			const int textPadX = DPIManagerV2::scale(8, hWnd);
+			const int radius = DPIManagerV2::scale(6, hWnd);
+			const int accentHeight = std::max(1, DPIManagerV2::scale(2, hWnd));
 
 			int nParts = static_cast<int>(SendMessage(hWnd, SB_GETPARTS, 0, 0));
 			std::wstring str;
@@ -160,17 +207,6 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 				{
 					continue;
 				}
-
-				if (nParts > 2) //to not apply on status bar in find dialog
-				{
-					POINT edges[] = {
-						{rcPart.right - 2, rcPart.top + 1},
-						{rcPart.right - 2, rcPart.bottom - 3}
-					};
-					Polyline(hdc, edges, _countof(edges));
-				}
-
-				RECT rcDivider = { rcPart.right - borders.vertical, rcPart.top, rcPart.right, rcPart.bottom };
 
 				DWORD cchText = 0;
 				cchText = LOWORD(SendMessage(hWnd, SB_GETTEXTLENGTH, i, 0));
@@ -184,10 +220,27 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 					ownerDraw = true;
 				}
 				SetBkMode(hdc, TRANSPARENT);
-				SetTextColor(hdc, NppDarkMode::getTextColor());
+				SetTextColor(hdc, (i == 2 || i == 5) ? mochaText : mochaSubtext0);
 
-				rcPart.left += borders.between;
-				rcPart.right -= borders.vertical;
+				RECT rcSegment = insetRect(rcPart, marginX, marginY);
+				const bool isActivePart = (i == 2 || i == 5);
+				paintRoundedRect(hdc, rcSegment, isActivePart ? hActivePen : hSegmentPen, isActivePart ? hActiveBrush : hSegmentBrush, radius);
+
+				if (isActivePart)
+				{
+					RECT rcAccent = rcSegment;
+					rcAccent.left += radius;
+					rcAccent.right -= radius;
+					rcAccent.top = std::max(rcAccent.top, rcAccent.bottom - accentHeight);
+					if (rcAccent.right > rcAccent.left)
+						::FillRect(hdc, &rcAccent, hAccentBrush);
+				}
+
+				RECT rcText = rcSegment;
+				const int segmentWidth = rcSegment.right - rcSegment.left;
+				const int actualTextPadX = std::min(textPadX, std::max(1, segmentWidth / 6));
+				rcText.left += actualTextPadX;
+				rcText.right -= actualTextPadX;
 
 				if (ownerDraw)
 				{
@@ -200,7 +253,7 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 						, id
 						, hWnd
 						, hdc
-						, rcPart
+						, rcText
 						, static_cast<ULONG_PTR>(lr)
 					};
 
@@ -208,29 +261,22 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 				}
 				else
 				{
-					DrawText(hdc, str.c_str(), static_cast<int>(str.size()), &rcPart, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
-				}
-
-				if (!isSizeGrip && i < (nParts - 1))
-				{
-					FillRect(hdc, &rcDivider, NppDarkMode::getCtrlBackgroundBrush());
+					DrawText(hdc, str.c_str(), static_cast<int>(str.size()), &rcText, DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS | DT_NOPREFIX);
 				}
 			}
 
 			if (isSizeGrip)
 			{
-				pStatusBarInfo->ensureTheme(hWnd);
-				SIZE gripSize{};
-				RECT rc{};
-				::GetClientRect(hWnd, &rc);
-				GetThemePartSize(pStatusBarInfo->hTheme, hdc, SP_GRIPPER, 0, &rc, TS_DRAW, &gripSize);
-				rc.left = rc.right - gripSize.cx;
-				rc.top = rc.bottom - gripSize.cy;
-				DrawThemeBackground(pStatusBarInfo->hTheme, hdc, SP_GRIPPER, 0, &rc, nullptr);
+				paintStatusSizeGrip(hdc, rcClient, std::max(1, DPIManagerV2::scale(2, hWnd)));
 			}
 
 			::SelectObject(hdc, holdFont);
-			::SelectObject(hdc, holdPen);
+			::DeleteObject(hActivePen);
+			::DeleteObject(hSegmentPen);
+			::DeleteObject(hAccentBrush);
+			::DeleteObject(hActiveBrush);
+			::DeleteObject(hSegmentBrush);
+			::DeleteObject(hBaseBrush);
 
 			if (uMsg == WM_PAINT)
 			{

@@ -448,7 +448,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	_statusBar.setPartWidth(STATUSBAR_CUR_POS, DPIManagerV2::scale(260, dpi));
 	_statusBar.setPartWidth(STATUSBAR_EOF_FORMAT, DPIManagerV2::scale(110, dpi));
 	_statusBar.setPartWidth(STATUSBAR_UNICODE_TYPE, DPIManagerV2::scale(120, dpi));
-	_statusBar.setPartWidth(STATUSBAR_TYPING_MODE, DPIManagerV2::scale(30, dpi));
+	_statusBar.setPartWidth(STATUSBAR_TYPING_MODE, DPIManagerV2::scale(52, dpi));
 	_statusBar.display(willBeShown);
 
 	initEditorGroupContainer(hwnd);

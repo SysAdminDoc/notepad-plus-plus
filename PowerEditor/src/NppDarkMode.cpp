@@ -45,11 +45,24 @@
 
 #ifdef __GNUC__
 #define WINAPI_LAMBDA WINAPI
+#else
+#define WINAPI_LAMBDA
+#endif
+
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
-#else
-#define WINAPI_LAMBDA
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWA_CAPTION_COLOR
+#define DWMWA_CAPTION_COLOR 35
+#endif
+#ifndef DWMWA_TEXT_COLOR
+#define DWMWA_TEXT_COLOR 36
+#endif
+#ifndef DWMWA_COLOR_DEFAULT
+#define DWMWA_COLOR_DEFAULT 0xFFFFFFFF
 #endif
 
 // already added in dpiManagerV2.h
@@ -4218,14 +4231,27 @@ namespace NppDarkMode
 	void setDarkTitleBar(HWND hwnd)
 	{
 		constexpr DWORD win10Build2004 = 19041;
-		if (NppDarkMode::getWindowsBuildNumber() >= win10Build2004)
+		constexpr DWORD win11Build = 22000;
+		const DWORD windowsBuild = NppDarkMode::getWindowsBuildNumber();
+		const bool useDark = NppDarkMode::isEnabled();
+		if (windowsBuild >= win10Build2004)
 		{
-			BOOL value = NppDarkMode::isEnabled() ? TRUE : FALSE;
+			BOOL value = useDark ? TRUE : FALSE;
 			::DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+
+			if (windowsBuild >= win11Build)
+			{
+				const COLORREF captionColor = useDark ? 0x002e1e1e : DWMWA_COLOR_DEFAULT; // Catppuccin Mocha base
+				const COLORREF borderColor = useDark ? 0x00443231 : DWMWA_COLOR_DEFAULT;  // Catppuccin surface0
+				const COLORREF textColor = useDark ? 0x00f4d6cd : DWMWA_COLOR_DEFAULT;    // Catppuccin text
+				::DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor));
+				::DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &borderColor, sizeof(borderColor));
+				::DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &textColor, sizeof(textColor));
+			}
 		}
 		else
 		{
-			NppDarkMode::allowDarkModeForWindow(hwnd, NppDarkMode::isEnabled());
+			NppDarkMode::allowDarkModeForWindow(hwnd, useDark);
 			NppDarkMode::setTitleBarThemeColor(hwnd);
 		}
 	}
