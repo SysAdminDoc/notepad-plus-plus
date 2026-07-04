@@ -348,7 +348,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 
 	_zoomOriginalValue = _pEditView->execute(SCI_GETZOOM);
 	_mainEditView.execute(SCI_SETZOOM, svp._zoom);
-	_subEditView.execute(SCI_SETZOOM, svp._zoomSync ? svp._zoom : svp._zoom2);
+	_subEditView.execute(SCI_SETZOOM, svp._zoom2);
 
 	::SendMessage(hwnd, NPPM_INTERNAL_SETMULTISELECTION, 0, 0);
 
@@ -451,7 +451,8 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	_statusBar.setPartWidth(STATUSBAR_TYPING_MODE, DPIManagerV2::scale(30, dpi));
 	_statusBar.display(willBeShown);
 
-	_pMainWindow = &_mainDocTab;
+	initEditorGroupContainer(hwnd);
+	_pMainWindow = &_groupContainer;
 
 	_dockingManager.init(_pPublicInterface->getHinst(), hwnd, &_pMainWindow);
 
@@ -499,7 +500,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 
 	// Run Menu
 	HMENU hRunMenu = ::GetSubMenu(_mainMenuHandle, MENUINDEX_RUN);
-	int const runPosBase = 4;
+	int const runPosBase = 2;
 	DynamicMenu& runMenuItems = nppParam.getRunMenuItems();
 	size_t nbRunTopLevelItem = runMenuItems.getTopLevelItemNumber();
 	if (nbRunTopLevelItem >= 1)
@@ -893,6 +894,7 @@ void Notepad_plus::killAllChildren()
 	_invisibleEditView.destroy();
 	_fileEditView.destroy();
 
+    _groupContainer.destroy();
     _subSplitter.destroy();
     _statusBar.destroy();
 
@@ -1001,7 +1003,7 @@ void Notepad_plus::saveDockingParams()
 	for (size_t i = 0, len = vCont.size(); i < len ; ++i)
 	{
 		// save at first the visible Tb's
-		vector<DockedWidgetData *>	vDataVis	= vCont[i]->getDataOfVisTb();
+		vector<tTbData *>	vDataVis	= vCont[i]->getDataOfVisTb();
 
 		for (size_t j = 0, len2 = vDataVis.size(); j < len2 ; ++j)
 		{
@@ -1013,7 +1015,7 @@ void Notepad_plus::saveDockingParams()
 		}
 
 		// save the hidden Tb's
-		vector<DockedWidgetData *>	vDataAll	= vCont[i]->getDataOfAllTb();
+		vector<tTbData *>	vDataAll	= vCont[i]->getDataOfAllTb();
 
 		for (size_t j = 0, len3 = vDataAll.size(); j < len3 ; ++j)
 		{
@@ -1946,7 +1948,6 @@ bool Notepad_plus::replaceInFilelist(std::vector<wstring> & fileNames)
 	}
 
 	bool hasInvalidRegExpr = false;
-
 	NppGUI& nppGUI = (NppParameters::getInstance()).getNppGUI();
 
 	for (size_t i = 0, updateOnCount = filesPerPercent; i < filesCount; ++i)
@@ -1979,7 +1980,7 @@ bool Notepad_plus::replaceInFilelist(std::vector<wstring> & fileNames)
 			if (nbReplaced == FIND_INVALID_REGULAR_EXPRESSION)
 			{
 				hasInvalidRegExpr = true;
-				break;
+				break;;
 			}
 			else
 			{
@@ -2020,10 +2021,10 @@ bool Notepad_plus::replaceInFilelist(std::vector<wstring> & fileNames)
 		result = stringReplace(result, L"$INT_REPLACE$", std::to_wstring(nbTotal));
 	}
 
-	if (hasInvalidRegExpr)
-		_findReplaceDlg.setStatusbarMessageWithRegExprErr(&_invisibleEditView);
-	else
+	if (!hasInvalidRegExpr)
 		_findReplaceDlg.setStatusbarMessage(result, FSMessage);
+	else
+		_findReplaceDlg.setStatusbarMessageWithRegExprErr(&_invisibleEditView);
 
 	return true;
 }
@@ -2616,7 +2617,6 @@ void Notepad_plus::checkDocState()
 
 	enableCommand(IDM_FILE_DELETE, isFileExisting, MENU);
 	enableCommand(IDM_FILE_OPEN_CMD, isFileExisting, MENU);
-	enableCommand(IDM_FILE_OPEN_POWERSHELL, isFileExisting, MENU);
 	enableCommand(IDM_FILE_OPEN_FOLDER, isFileExisting, MENU);
 	enableCommand(IDM_FILE_RELOAD, isFileExisting, MENU);
 	enableCommand(IDM_FILE_CONTAININGFOLDERASWORKSPACE, isFileExisting, MENU);
@@ -2686,13 +2686,8 @@ void Notepad_plus::checkSyncState()
 		_toolBar.setCheck(IDM_VIEW_SYNSCROLLV, false);
 		_toolBar.setCheck(IDM_VIEW_SYNSCROLLH, false);
 	}
-	else
-	{
-		syncZoom();
-	}
 	enableCommand(IDM_VIEW_SYNSCROLLV, canDoSync, MENU | TOOLBAR);
 	enableCommand(IDM_VIEW_SYNSCROLLH, canDoSync, MENU | TOOLBAR);
-	enableCommand(IDM_VIEW_ZOOM_SYNC, canDoSync, MENU);
 }
 
 void Notepad_plus::setupColorSampleBitmapsOnMainMenuItems()
@@ -4139,8 +4134,6 @@ LangType Notepad_plus::menuID2LangType(int cmdID)
             return L_SAS;
         case IDM_LANG_ERRORLIST:
             return L_ERRORLIST;
-        case IDM_LANG_ESCSEQ:
-            return L_ESCSEQ;
         case IDM_LANG_USER:
             return L_USER;
 		default:
@@ -4515,21 +4508,19 @@ void Notepad_plus::dropFiles(HDROP hdrop)
 		//else
 			// do not change the current Notepad++ edit-view
 
-		int filesDropped = ::DragQueryFileW(hdrop, 0xffffffff, NULL, 0);
+		int filesDropped = ::DragQueryFile(hdrop, 0xffffffff, NULL, 0);
 
 		vector<wstring> folderPaths;
 		vector<wstring> filePaths;
 		for (int i = 0; i < filesDropped; ++i)
 		{
-			wchar_t pathDropped[MAX_PATH]{};
-			::DragQueryFileW(hdrop, i, pathDropped, MAX_PATH);
+			wchar_t pathDropped[MAX_PATH];
+			::DragQueryFile(hdrop, i, pathDropped, MAX_PATH);
 			if (doesDirectoryExist(pathDropped))
 			{
-				size_t len = lstrlenW(pathDropped);
-				if ((len > 0) && (pathDropped[len - 1] != wchar_t('\\')))
+				size_t len = lstrlen(pathDropped);
+				if (len > 0 && pathDropped[len - 1] != wchar_t('\\'))
 				{
-					if (len + 1 >= MAX_PATH)
-						continue; // not enough space for the trailing backslash, try next
 					pathDropped[len] = wchar_t('\\');
 					pathDropped[len + 1] = wchar_t('\0');
 				}
@@ -4544,17 +4535,13 @@ void Notepad_plus::dropFiles(HDROP hdrop)
 		NppParameters& nppParam = NppParameters::getInstance();
 		bool isOldMode = nppParam.getNppGUI()._isFolderDroppedOpenFiles;
 
-		if ((filePaths.size() == 0) && (folderPaths.size() == 0))
-		{
-			// invalid paths, do nothing
-		}
-		else if (isOldMode || folderPaths.size() == 0) // old mode or new mode + only files
+		if (isOldMode || folderPaths.size() == 0) // old mode or new mode + only files
 		{
 			BufferID lastOpened = BUFFER_INVALID;
 			for (int i = 0; i < filesDropped; ++i)
 			{
-				wchar_t pathDropped[MAX_PATH]{};
-				::DragQueryFileW(hdrop, i, pathDropped, MAX_PATH);
+				wchar_t pathDropped[MAX_PATH];
+				::DragQueryFile(hdrop, i, pathDropped, MAX_PATH);
 				BufferID test = doOpen(pathDropped);
 				if (test != BUFFER_INVALID)
 					lastOpened = test;
@@ -4609,41 +4596,53 @@ void Notepad_plus::getMainClientRect(RECT &rc) const
 
 void Notepad_plus::showView(int whichOne)
 {
-	if (viewVisible(whichOne))	//no use making visible view visible
+	if (viewVisible(whichOne))
 		return;
+
+	// For views 0 and 1, add to the group container if not already there
+	int groupIdx = _groupContainer.getGroupIndexById(whichOne);
+	if (groupIdx < 0)
+	{
+		EditorGroup group;
+		group.id = whichOne;
+		group.docTab = getDocTabByView(whichOne);
+		group.editView = getEditViewByView(whichOne);
+		group.autoComplete = getAutoCompleteByView(whichOne);
+		group.isDynamic = false;
+		group.widthRatio = 1.0;
+		_groupContainer.addGroup(group);
+	}
+
+	DocTabView* tab = getDocTabByView(whichOne);
+	ScintillaEditView* view = getEditViewByView(whichOne);
+	if (tab) tab->display(true);
+	if (view) view->display(true);
 
 	if (_mainWindowStatus & WindowUserActive)
 	{
-		 _pMainSplitter->setWin0(&_subSplitter);
-		 _pMainWindow = _pMainSplitter;
+		_pMainSplitter->setWin0(&_groupContainer);
+		_pMainWindow = _pMainSplitter;
 	}
 	else
 	{
-		_pMainWindow = &_subSplitter;
-	}
-
-	if (whichOne == MAIN_VIEW)
-	{
-		_mainEditView.display(true);
-		_mainDocTab.display(true);
-	}
-	else if (whichOne == SUB_VIEW)
-	{
-		_subEditView.display(true);
-		_subDocTab.display(true);
+		_pMainWindow = &_groupContainer;
 	}
 	_pMainWindow->display(true);
 
 	_mainWindowStatus |= static_cast<UCHAR>((whichOne==MAIN_VIEW)?WindowMainActive:WindowSubActive);
 
-	//Send sizing info to make windows fit
 	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 }
 
 bool Notepad_plus::viewVisible(int whichOne)
 {
-	int viewToCheck = (whichOne == SUB_VIEW?WindowSubActive:WindowMainActive);
-	return (_mainWindowStatus & viewToCheck) != 0;
+	if (whichOne == MAIN_VIEW)
+		return (_mainWindowStatus & WindowMainActive) != 0;
+	if (whichOne == SUB_VIEW)
+		return (_mainWindowStatus & WindowSubActive) != 0;
+
+	int groupIdx = _groupContainer.getGroupIndexById(whichOne);
+	return groupIdx >= 0;
 }
 
 void Notepad_plus::hideCurrentView()
@@ -4653,34 +4652,31 @@ void Notepad_plus::hideCurrentView()
 
 void Notepad_plus::hideView(int whichOne)
 {
-	if (!(bothActive()))	//cannot close if not both views visible
+	if (_groupContainer.groupCount() <= 1)
 		return;
 
-	Window * windowToSet = (whichOne == MAIN_VIEW)?&_subDocTab:&_mainDocTab;
-	if ((_mainWindowStatus & WindowUserActive) == WindowUserActive)
+	// Remove the group from the container
+	int groupIdx = _groupContainer.getGroupIndexById(whichOne);
+	if (groupIdx >= 0)
+		_groupContainer.removeGroup(groupIdx);
+
+	DocTabView* tab = getDocTabByView(whichOne);
+	ScintillaEditView* view = getEditViewByView(whichOne);
+	if (tab) tab->display(false);
+	if (view) view->display(false);
+
+	if (_groupContainer.groupCount() == 1)
 	{
-		_pMainSplitter->setWin0(windowToSet);
-	}
-	else
-	{
-		// otherwise the main window is the spltter container that we just created
-		_pMainWindow = windowToSet;
+		if ((_mainWindowStatus & WindowUserActive) == WindowUserActive)
+		{
+			_pMainSplitter->setWin0(&_groupContainer);
+		}
+		else
+		{
+			_pMainWindow = &_groupContainer;
+		}
 	}
 
-	_subSplitter.display(false);	//hide splitter
-	//hide scintilla and doctab
-	if (whichOne == MAIN_VIEW)
-	{
-		_mainEditView.display(false);
-		_mainDocTab.display(false);
-	}
-	else if (whichOne == SUB_VIEW)
-	{
-		_subEditView.display(false);
-		_subDocTab.display(false);
-	}
-
-	// resize the main window
 	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 
 	auto viewToDisable = static_cast<UCHAR>(whichOne == SUB_VIEW ? WindowSubActive : WindowMainActive);
@@ -4697,10 +4693,10 @@ bool Notepad_plus::loadStyles()
 bool Notepad_plus::canHideView(int whichOne)
 {
 	if (!viewVisible(whichOne))
-		return false;	//cannot hide hidden view
-	if (!bothActive())
-		return false;	//cannot hide only window
-	DocTabView * tabToCheck = (whichOne == MAIN_VIEW)?&_mainDocTab:&_subDocTab;
+		return false;
+	if (_groupContainer.groupCount() <= 1)
+		return false;
+	DocTabView * tabToCheck = getDocTabByView(whichOne);
 	Buffer * buf = MainFileManager.getBufferByID(tabToCheck->getBufferByIndex(0));
 	bool canHide = ((tabToCheck->nbItem() == 1) && !buf->isDirty() && buf->isUntitled());
 	return canHide;
@@ -4719,8 +4715,9 @@ bool Notepad_plus::isEmpty()
 
 void Notepad_plus::loadBufferIntoView(BufferID id, int whichOne, bool dontClose)
 {
-	DocTabView * tabToOpen = (whichOne == MAIN_VIEW)?&_mainDocTab:&_subDocTab;
-	ScintillaEditView * viewToOpen = (whichOne == MAIN_VIEW)?&_mainEditView:&_subEditView;
+	DocTabView * tabToOpen = getDocTabByView(whichOne);
+	ScintillaEditView * viewToOpen = getEditViewByView(whichOne);
+	if (!tabToOpen || !viewToOpen) return;
 
 	//check if buffer exists
 	int index = tabToOpen->getIndexByBuffer(id);
@@ -4758,8 +4755,9 @@ void Notepad_plus::loadBufferIntoView(BufferID id, int whichOne, bool dontClose)
 
 bool Notepad_plus::removeBufferFromView(BufferID id, int whichOne)
 {
-	DocTabView * tabToClose = (whichOne == MAIN_VIEW) ? &_mainDocTab : &_subDocTab;
-	ScintillaEditView * viewToClose = (whichOne == MAIN_VIEW) ? &_mainEditView : &_subEditView;
+	DocTabView * tabToClose = getDocTabByView(whichOne);
+	ScintillaEditView * viewToClose = getEditViewByView(whichOne);
+	if (!tabToClose || !viewToClose) return false;
 
 	//check if buffer exists
 	int index = tabToClose->getIndexByBuffer(id);
@@ -4782,12 +4780,12 @@ bool Notepad_plus::removeBufferFromView(BufferID id, int whichOne)
 	int active = tabToClose->getCurrentTabIndex();
 	if (active == index) //need an alternative (close real doc, put empty one back)
 	{
-		if (tabToClose->nbItem() == 1)  //need alternative doc, add new one. Use special logic to prevent flicker of adding new tab then closing other
+		if (tabToClose->nbItem() == 1)  //need alternative doc, add new one
 		{
 			BufferID newID = MainFileManager.newEmptyDocument();
 			MainFileManager.addBufferReference(newID, viewToClose);
-			tabToClose->setBuffer(0, newID);        //can safely use id 0, last (only) tab open
-			activateBuffer(newID, whichOne);        //activate. DocTab already activated but not a problem
+			tabToClose->setBuffer(0, newID);
+			activateBuffer(newID, whichOne);
 		}
 		else
 		{
@@ -4819,8 +4817,8 @@ bool Notepad_plus::removeBufferFromView(BufferID id, int whichOne)
 			}
 
 			tabToClose->deletItemAt((size_t)index); //delete first
-			_isFolding = true; // So we can ignore events while folding is taking place
-			activateBuffer(tabToClose->getBufferByIndex(toActivate), whichOne);     //then activate. The prevent jumpy tab behaviour
+			_isFolding = true;
+			activateBuffer(tabToClose->getBufferByIndex(toActivate), whichOne);
 			_isFolding = false;
 		}
 	}
@@ -4846,12 +4844,30 @@ int Notepad_plus::switchEditViewTo(int gid)
 		return currentView();	//cannot activate invisible view
 
 	int oldView = currentView();
-	int newView = otherView();
+	int newView = gid;
 
 	_activeView = newView;
-	//Good old switcheroo
-	std::swap(_pDocTab, _pNonDocTab);
-	std::swap(_pEditView, _pNonEditView);
+
+	_pDocTab = getDocTabByView(newView);
+	_pEditView = getEditViewByView(newView);
+	if (!_pDocTab || !_pEditView)
+		return oldView;
+
+	// For backward compat, _pNonDocTab/_pNonEditView point to another visible view
+	_pNonDocTab = nullptr;
+	_pNonEditView = nullptr;
+	for (int i = 0; i < _groupContainer.groupCount(); ++i)
+	{
+		auto& g = _groupContainer.getGroup(i);
+		if (g.id != newView && g.isValid())
+		{
+			_pNonDocTab = g.docTab;
+			_pNonEditView = g.editView;
+			break;
+		}
+	}
+	if (!_pNonDocTab) _pNonDocTab = &_mainDocTab;
+	if (!_pNonEditView) _pNonEditView = &_mainEditView;
 
 	_pEditView->beSwitched();
     _pEditView->grabFocus();	//set the focus
@@ -4878,20 +4894,11 @@ void Notepad_plus::dockUserDlg()
         _pMainSplitter = new SplitterContainer;
 		_pMainSplitter->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf());
 
-        Window *pWindow;
-		if (_mainWindowStatus & (WindowMainActive | WindowSubActive))
-            pWindow = &_subSplitter;
-        else
-            pWindow = _pDocTab;
-
 		const int splitterSizeDyn = DPIManagerV2::scale(splitterSize, _pPublicInterface->getHSelf());
-        _pMainSplitter->create(pWindow, ScintillaEditView::getUserDefineDlg(), splitterSizeDyn, SplitterMode::RIGHT_FIX, 45);
+        _pMainSplitter->create(&_groupContainer, ScintillaEditView::getUserDefineDlg(), splitterSizeDyn, SplitterMode::RIGHT_FIX, 45);
     }
 
-    if (bothActive())
-        _pMainSplitter->setWin0(&_subSplitter);
-    else
-        _pMainSplitter->setWin0(_pDocTab);
+    _pMainSplitter->setWin0(&_groupContainer);
 
     _pMainSplitter->display();
 
@@ -4903,13 +4910,9 @@ void Notepad_plus::dockUserDlg()
 
 void Notepad_plus::undockUserDlg()
 {
-    // a cause de surchargement de "display"
     ::ShowWindow(_pMainSplitter->getHSelf(), SW_HIDE);
 
-    if (bothActive())
-        _pMainWindow = &_subSplitter;
-    else
-        _pMainWindow = _pDocTab;
+    _pMainWindow = &_groupContainer;
 
     ::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 
@@ -5088,28 +5091,19 @@ bool Notepad_plus::activateBuffer(BufferID id, int whichOne, bool forceApplyHili
 		pBuf->setNeedReload(false);
 	}
 
-	if (whichOne == MAIN_VIEW)
+	DocTabView* tab = getDocTabByView(whichOne);
+	ScintillaEditView* view = getEditViewByView(whichOne);
+	if (!tab || !view)
+		return false;
+
+	if (tab->activateBuffer(id))
 	{
-		if (_mainDocTab.activateBuffer(id))	//only activate if possible
-		{
-			_isFolding = true;
-			_mainEditView.activateBuffer(id, forceApplyHilite);
-			_isFolding = false;
-		}
-		else
-			return false;
+		_isFolding = true;
+		view->activateBuffer(id, forceApplyHilite);
+		_isFolding = false;
 	}
 	else
-	{
-		if (_subDocTab.activateBuffer(id))
-		{
-			_isFolding = true;
-			_subEditView.activateBuffer(id, forceApplyHilite);
-			_isFolding = false;
-		}
-		else
-			return false;
-	}
+		return false;
 
 	if (reload)
 	{
@@ -5192,9 +5186,6 @@ void Notepad_plus::staticCheckMenuAndTB() const
 	checkMenuItem(IDM_VIEW_WRAP, b);
 	_toolBar.setCheck(IDM_VIEW_WRAP, b);
 	checkMenuItem(IDM_VIEW_WRAP_SYMBOL, _pEditView->isWrapSymbolVisible());
-
-	// Zoom sync
-	checkMenuItem(IDM_VIEW_ZOOM_SYNC, NppParameters::getInstance().getSVP()._zoomSync);
 }
 
 
@@ -5743,7 +5734,7 @@ void Notepad_plus::saveScintillasZoom()
 	NppParameters& nppParam = NppParameters::getInstance();
 	ScintillaViewParams & svp = (ScintillaViewParams &)nppParam.getSVP();
 	svp._zoom = _mainEditView.execute(SCI_GETZOOM);
-	svp._zoom2 = svp._zoomSync ? svp._zoom : _subEditView.execute(SCI_GETZOOM);
+	svp._zoom2 = _subEditView.execute(SCI_GETZOOM);
 }
 
 void Notepad_plus::syncZoom()
@@ -5755,8 +5746,8 @@ void Notepad_plus::syncZoom()
 
 	_isSyncingZoom = true;
 	intptr_t zoom = _pEditView->execute(SCI_GETZOOM);
-	ScintillaEditView* otherView = (_pEditView == &_mainEditView) ? &_subEditView : &_mainEditView;
-	otherView->execute(SCI_SETZOOM, zoom);
+	ScintillaEditView* pOtherView = (_pEditView == &_mainEditView) ? &_subEditView : &_mainEditView;
+	pOtherView->execute(SCI_SETZOOM, zoom);
 	_isSyncingZoom = false;
 }
 
@@ -6368,7 +6359,7 @@ void Notepad_plus::doSynScroll(HWND whichView)
 	pView->scroll(column, line);
 }
 
-bool Notepad_plus::getIntegralDockingData(DockedWidgetData & dockData, int & iCont, bool & isVisible)
+bool Notepad_plus::getIntegralDockingData(tTbData & dockData, int & iCont, bool & isVisible)
 {
 	const DockingManagerData & dockingData = (DockingManagerData &)(NppParameters::getInstance()).getNppGUI()._dockingData;
 
@@ -6385,7 +6376,7 @@ bool Notepad_plus::getIntegralDockingData(DockedWidgetData & dockData, int & iCo
 			if (dockData.iPrevCont != -1)
 			{
 				int cont = (pddi._currContainer < DOCKCONT_MAX ? pddi._prevContainer : pddi._currContainer);
-				RECT rc {};
+				RECT rc;
 				if (dockingData.getFloatingRCFrom(cont, rc))
 					dockData.rcFloat = rc;
 			}
@@ -7369,7 +7360,7 @@ void Notepad_plus::launchClipboardHistoryPanel()
 
 		NativeLangSpeaker *pNativeSpeaker = nppParams.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
-		DockedWidgetData	data{};
+		tTbData	data{};
 		_pClipboardHistoryPanel->create(&data, { IDR_CLIPBOARDPANEL_ICO, IDR_CLIPBOARDPANEL_ICO_DM, IDR_CLIPBOARDPANEL_ICO2 }, isRTL);
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pClipboardHistoryPanel->getHSelf()));
@@ -7426,7 +7417,7 @@ void Notepad_plus::launchDocumentListPanel(bool changeFromBtnCmd)
 		_pDocumentListPanel->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf(), hImgLst);
 		NativeLangSpeaker *pNativeSpeaker = nppParams.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
-		DockedWidgetData	data{};
+		tTbData	data{};
 		_pDocumentListPanel->create(&data, { IDR_DOCLIST_ICO, IDR_DOCLIST_ICO_DM, IDR_DOCLIST_ICO2 }, isRTL);
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pDocumentListPanel->getHSelf()));
@@ -7507,7 +7498,7 @@ void Notepad_plus::launchAnsiCharPanel()
 
 		NativeLangSpeaker *pNativeSpeaker = nppParams.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
-		DockedWidgetData	data{};
+		tTbData	data{};
 		_pAnsiCharPanel->create(&data, { IDR_ASCIIPANEL_ICO, IDR_ASCIIPANEL_ICO_DM, IDR_ASCIIPANEL_ICO2 }, isRTL);
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pAnsiCharPanel->getHSelf()));
@@ -7549,7 +7540,7 @@ void Notepad_plus::launchFileBrowser(const vector<wstring> & folders, const wstr
 		_pFileBrowser = new FileBrowser;
 		_pFileBrowser->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf());
 
-		DockedWidgetData	data{};
+		tTbData	data{};
 		_pFileBrowser->create(&data, { IDR_FILEBROWSER_ICO, IDR_FILEBROWSER_ICO_DM, IDR_FILEBROWSER_ICO2 }, _nativeLangSpeaker.isRTL());
 		data.pszName = L"ST";
 
@@ -7654,7 +7645,7 @@ void Notepad_plus::launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int
 		(*pProjPanel)->setWorkSpaceFilePath(nppParam.getWorkSpaceFilePath(panelID));
 		NativeLangSpeaker *pNativeSpeaker = nppParam.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
-		DockedWidgetData	data{};
+		tTbData	data{};
 		(*pProjPanel)->create(&data, { IDR_PROJECTPANEL_ICO, IDR_PROJECTPANEL_ICO_DM, IDR_PROJECTPANEL_ICO2 }, isRTL);
 		data.pszName = L"ST";
 
@@ -7714,7 +7705,7 @@ void Notepad_plus::launchDocMap()
 		_pDocMap = new DocumentMap();
 		_pDocMap->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf(), &_pEditView);
 
-		DockedWidgetData	data{};
+		tTbData	data{};
 		_pDocMap->create(&data, { IDR_DOCMAP_ICO, IDR_DOCMAP_ICO_DM, IDR_DOCMAP_ICO2 });
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pDocMap->getHSelf()));
@@ -7756,7 +7747,7 @@ void Notepad_plus::launchFunctionList()
 		_pFuncList = new FunctionListPanel();
 		_pFuncList->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf(), &_pEditView);
 
-		DockedWidgetData	data{};
+		tTbData	data{};
 		_pFuncList->create(&data, { IDR_FUNC_LIST_ICO, IDR_FUNC_LIST_ICO_DM, IDR_FUNC_LIST_ICO2 });
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pFuncList->getHSelf()));
@@ -9314,10 +9305,16 @@ BOOL Notepad_plus::notifyTBShowMenu(LPNMTOOLBARW lpnmtb, const char* menuPosId, 
 void Notepad_plus::changeReadOnlyUserModeForAllOpenedTabs(const bool ro)
 {
 	if (ro != true && NppParameters::getInstance().getNppGUI()._isFullReadOnlySavingForbidden)
-		return; // safety for FullReadOnlySavingForbidden mode, refuse to cease the R/O state
+		return;
 
-	// make R/O changes in both views
 	std::vector<DocTabView*> tabViews = { &_mainDocTab, &_subDocTab };
+	// Also include dynamic groups
+	for (int i = 0; i < _groupContainer.groupCount(); ++i)
+	{
+		auto& g = _groupContainer.getGroup(i);
+		if (g.isDynamic && g.docTab)
+			tabViews.push_back(g.docTab);
+	}
 	for (auto& pTabView : tabViews)
 	{
 		for (size_t i = 0; i < pTabView->nbItem(); ++i)
@@ -9330,5 +9327,279 @@ void Notepad_plus::changeReadOnlyUserModeForAllOpenedTabs(const bool ro)
 					buf->setUserReadOnly(ro);
 			}
 		}
+	}
+}
+
+
+DocTabView* Notepad_plus::getDocTabByView(int whichOne)
+{
+	if (whichOne == MAIN_VIEW) return &_mainDocTab;
+	if (whichOne == SUB_VIEW) return &_subDocTab;
+
+	EditorGroup* g = _groupContainer.getGroupById(whichOne);
+	return g ? g->docTab : nullptr;
+}
+
+
+ScintillaEditView* Notepad_plus::getEditViewByView(int whichOne)
+{
+	if (whichOne == MAIN_VIEW) return &_mainEditView;
+	if (whichOne == SUB_VIEW) return &_subEditView;
+
+	EditorGroup* g = _groupContainer.getGroupById(whichOne);
+	return g ? g->editView : nullptr;
+}
+
+
+AutoCompletion* Notepad_plus::getAutoCompleteByView(int whichOne)
+{
+	if (whichOne == MAIN_VIEW) return &_autoCompleteMain;
+	if (whichOne == SUB_VIEW) return &_autoCompleteSub;
+
+	EditorGroup* g = _groupContainer.getGroupById(whichOne);
+	return g ? g->autoComplete : nullptr;
+}
+
+
+int Notepad_plus::getViewIdForGroup(int groupIndex)
+{
+	if (groupIndex < 0 || groupIndex >= _groupContainer.groupCount())
+		return -1;
+	return _groupContainer.getGroup(groupIndex).id;
+}
+
+
+void Notepad_plus::initEditorGroupContainer(HWND hwnd)
+{
+	_groupContainer.create(_pPublicInterface->getHinst(), hwnd);
+
+	EditorGroup mainGroup;
+	mainGroup.id = MAIN_VIEW;
+	mainGroup.docTab = &_mainDocTab;
+	mainGroup.editView = &_mainEditView;
+	mainGroup.autoComplete = &_autoCompleteMain;
+	mainGroup.isDynamic = false;
+	mainGroup.widthRatio = 1.0;
+	_groupContainer.addGroup(mainGroup);
+
+	_groupContainer.display(true);
+}
+
+
+int Notepad_plus::createNewEditorGroup()
+{
+	HWND hwnd = _pPublicInterface->getHSelf();
+	HINSTANCE hInst = _pPublicInterface->getHinst();
+	int viewId = _nextGroupId++;
+
+	auto* editView = new ScintillaEditView(MAIN_EDIT_ZONE);
+	editView->init(hInst, hwnd);
+
+	NppParameters& nppParam = NppParameters::getInstance();
+	const ScintillaViewParams& svp = nppParam.getSVP();
+	editView->showMargin(ScintillaEditView::_SC_MARGE_LINENUMBER, svp._lineNumberMarginShow);
+	editView->showMargin(ScintillaEditView::_SC_MARGE_SYMBOL, svp._bookMarkMarginShow);
+	editView->showIndentGuideLine(svp._indentGuideLineShow);
+	editView->setMakerStyle(svp._folderStyle);
+	editView->setWrapMode(svp._lineWrapMethod);
+	editView->execute(SCI_SETENDATLASTLINE, !svp._scrollBeyondLastLine);
+	if (svp._doSmoothFont)
+		editView->execute(SCI_SETFONTQUALITY, SC_EFF_QUALITY_LCD_OPTIMIZED);
+	editView->setBorderEdge(svp._showBorderEdge);
+	editView->execute(SCI_SETCARETLINEVISIBLEALWAYS, true);
+	editView->wrap(svp._doWrap);
+	editView->showEOL(svp._eolShow);
+	editView->showWSAndTab(svp._whiteSpaceShow);
+	editView->showWrapSymbol(svp._wrapSymbolShow);
+	editView->performGlobalStyles();
+	editView->execute(SCI_SETZOOM, svp._zoom);
+	editView->execute(SCI_SETADDITIONALSELECTIONTYPING, true);
+	editView->execute(SCI_SETMULTIPASTE, SC_MULTIPASTE_EACH);
+	editView->execute(SCI_AUTOCSETMULTI, SC_MULTIAUTOC_EACH);
+	editView->execute(SCI_SETMOUSESELECTIONRECTANGULARSWITCH, true);
+	editView->execute(SCI_SETAUTOMATICFOLD, SC_AUTOMATICFOLD_SHOW | SC_AUTOMATICFOLD_CHANGE);
+	editView->execute(SCI_SETMARGINLEFT, 0, svp._paddingLeft);
+	editView->execute(SCI_SETMARGINRIGHT, 0, svp._paddingRight);
+	editView->execute(SCI_STYLESETCHECKMONOSPACED, STYLE_DEFAULT, true);
+	editView->execute(SCI_SETUNDOSELECTIONHISTORY, SC_UNDO_SELECTION_HISTORY_ENABLED | SC_UNDO_SELECTION_HISTORY_SCROLL);
+
+	AutoCompletion::drawAutocomplete(editView);
+
+	NppGUI& nppGUI = nppParam.getNppGUI();
+	int tabBarStatus = nppGUI._tabStatus;
+	const int tabIconSet = NppDarkMode::getTabIconSet(NppDarkMode::isEnabled());
+	unsigned char indexDocTabIcon = 0;
+	switch (tabIconSet)
+	{
+		case 1: indexDocTabIcon = 1; break;
+		case 2: indexDocTabIcon = 2; break;
+		default: indexDocTabIcon = ((tabBarStatus & TAB_ALTICONS) == TAB_ALTICONS) ? 1 : (NppDarkMode::isEnabled() ? 2 : 0); break;
+	}
+
+	unsigned char buttonsStatus = 0;
+	buttonsStatus |= (tabBarStatus & TAB_CLOSEBUTTON) ? 1 : 0;
+	buttonsStatus |= (tabBarStatus & TAB_PINBUTTON) ? 2 : 0;
+
+	auto* docTab = new DocTabView;
+	docTab->dpiManager().setDpiWithParent(hwnd);
+	docTab->init(hInst, hwnd, editView, indexDocTabIcon, buttonsStatus);
+
+	const auto& hf = _mainDocTab.getFont(nppGUI._tabStatus & TAB_REDUCE);
+	if (hf)
+		::SendMessage(docTab->getHSelf(), WM_SETFONT, reinterpret_cast<WPARAM>(hf), MAKELPARAM(TRUE, 0));
+
+	int tabDpiDynamicalHeight = docTab->dpiManager().scale(nppGUI._tabStatus & TAB_REDUCE ? g_TabHeight : g_TabHeightLarge);
+	int tabDpiDynamicalWidth = docTab->dpiManager().scale(nppGUI._tabStatus & TAB_PINBUTTON ? g_TabWidthButton : g_TabWidth);
+	TabCtrl_SetItemSize(docTab->getHSelf(), tabDpiDynamicalWidth, tabDpiDynamicalHeight);
+
+	auto* autoComp = new AutoCompletion(editView);
+
+	EditorGroup group;
+	group.id = viewId;
+	group.docTab = docTab;
+	group.editView = editView;
+	group.autoComplete = autoComp;
+	group.isDynamic = true;
+	group.widthRatio = 1.0;
+
+	_groupContainer.addGroup(group);
+
+	docTab->display(true);
+	editView->display(true);
+
+	BufferID newBuf = MainFileManager.newEmptyDocument();
+	MainFileManager.addBufferReference(newBuf, editView);
+	docTab->addBuffer(newBuf);
+	docTab->activateBuffer(newBuf);
+	editView->activateBuffer(newBuf, true);
+	editView->defineDocType(editView->getCurrentBuffer()->getLangType());
+
+	TabBarPlus::triggerOwnerDrawTabbar(&(docTab->dpiManager()));
+
+	::InvalidateRect(docTab->getHSelf(), nullptr, TRUE);
+	::UpdateWindow(docTab->getHSelf());
+
+	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+	return viewId;
+}
+
+
+void Notepad_plus::removeEditorGroup(int groupIndex)
+{
+	if (groupIndex < 0 || groupIndex >= _groupContainer.groupCount())
+		return;
+
+	auto& g = _groupContainer.getGroup(groupIndex);
+	if (!g.isDynamic)
+	{
+		hideView(g.id);
+		return;
+	}
+
+	// Close all buffers in this group
+	if (g.docTab)
+	{
+		while (g.docTab->nbItem() > 0)
+		{
+			BufferID bufId = g.docTab->getBufferByIndex(0);
+			g.docTab->closeBuffer(bufId);
+			MainFileManager.closeBuffer(bufId, g.editView);
+		}
+	}
+
+	_groupContainer.removeGroup(groupIndex);
+
+	if (_groupContainer.groupCount() > 0)
+	{
+		int newActive = _groupContainer.activeGroupIndex();
+		int viewId = getViewIdForGroup(newActive);
+		if (viewId >= 0)
+			switchEditViewTo(viewId);
+	}
+
+	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+}
+
+
+void Notepad_plus::moveBufferToGroup(BufferID id, int srcView, int destGroupIndex, bool isClone)
+{
+	if (destGroupIndex < 0 || destGroupIndex >= _groupContainer.groupCount())
+		return;
+
+	auto& destGroup = _groupContainer.getGroup(destGroupIndex);
+	int destView = destGroup.id;
+
+	DocTabView* destTab = destGroup.docTab;
+	ScintillaEditView* destEditView = destGroup.editView;
+	if (!destTab || !destEditView)
+		return;
+
+	if (destTab->getIndexByBuffer(id) >= 0)
+	{
+		destTab->activateBuffer(id);
+		destEditView->activateBuffer(id, false);
+		return;
+	}
+
+	MainFileManager.addBufferReference(id, destEditView);
+	destTab->addBuffer(id);
+	destTab->activateBuffer(id);
+	destEditView->activateBuffer(id, true);
+	destEditView->defineDocType(destEditView->getCurrentBuffer()->getLangType());
+	destEditView->performGlobalStyles();
+
+	if (!isClone && (srcView == MAIN_VIEW || srcView == SUB_VIEW))
+	{
+		DocTabView* srcTab = getDocTabByView(srcView);
+		Buffer* buf = MainFileManager.getBufferByID(id);
+		bool isSrcLastCleanUntitled = srcTab && srcTab->nbItem() == 1 && !buf->isDirty() && buf->isUntitled();
+		if (!isSrcLastCleanUntitled)
+			removeBufferFromView(id, srcView);
+	}
+
+	::InvalidateRect(destTab->getHSelf(), nullptr, TRUE);
+	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+	switchEditViewTo(destView);
+}
+
+
+void Notepad_plus::handleTabDropOnGroup(int destGroupIndex, DropPosition pos)
+{
+	if (pos == DropPosition::None)
+		return;
+
+	BufferID curBuf = _pEditView->getCurrentBufferID();
+	int srcView = currentView();
+
+	if (pos == DropPosition::Center)
+	{
+		moveBufferToGroup(curBuf, srcView, destGroupIndex);
+	}
+	else if (pos == DropPosition::Right)
+	{
+		int newViewId = createNewEditorGroup();
+		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+		if (newGroupIdx >= 0)
+		{
+			// Reorder: move the new group to right after destGroupIndex
+			// For now, it's appended at the end which is fine for right-split
+			moveBufferToGroup(curBuf, srcView, newGroupIdx);
+		}
+	}
+	else if (pos == DropPosition::Left)
+	{
+		int newViewId = createNewEditorGroup();
+		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+		if (newGroupIdx >= 0)
+			moveBufferToGroup(curBuf, srcView, newGroupIdx);
+	}
+
+	// Auto-remove empty source groups
+	int srcGroupIdx = _groupContainer.getGroupIndexById(srcView);
+	if (srcGroupIdx >= 0)
+	{
+		auto& srcGroup = _groupContainer.getGroup(srcGroupIdx);
+		if (srcGroup.isDynamic && srcGroup.docTab && srcGroup.docTab->nbItem() == 0)
+			removeEditorGroup(srcGroupIdx);
 	}
 }

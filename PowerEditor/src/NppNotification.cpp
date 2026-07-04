@@ -733,84 +733,115 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 			if (notification->nmhdr.code == TCN_TABDROPPEDOUTSIDE)
 			{
 				POINT p = sender->getDraggingPoint();
-
-				//It's the coordinate of screen, so we can call
-				//"WindowFromPoint" function without converting the point
 				HWND hWin = ::WindowFromPoint(p);
-				if (hWin == _pEditView->getHSelf()) // In the same view group
+
+				// Check if dropped on any editor group's tab bar or edit view
+				int targetGroupIdx = _groupContainer.getGroupIndexByHwnd(hWin);
+				int srcGroupIdx = -1;
+				// Find which group the sender belongs to
+				for (int gi = 0; gi < _groupContainer.groupCount(); ++gi)
 				{
-					if (!_tabPopupDropMenu.isCreated())
+					auto& g = _groupContainer.getGroup(gi);
+					if (g.docTab && g.docTab->getHSelf() == sender->getHSelf())
 					{
-						wchar_t goToView[32] = L"Move to Other View";
-						wchar_t cloneToView[32] = L"Clone to Other View";
-						vector<MenuItemUnit> itemUnitArray;
-						itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_GOTO_ANOTHER_VIEW, goToView));
-						itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_CLONE_TO_ANOTHER_VIEW, cloneToView));
-						_tabPopupDropMenu.create(_pPublicInterface->getHSelf(), itemUnitArray, _mainMenuHandle);
-						_nativeLangSpeaker.changeLangTabDropContextMenu(_tabPopupDropMenu.getMenuHandle());
+						srcGroupIdx = gi;
+						break;
 					}
-					_tabPopupDropMenu.display(p);
 				}
-				else if ((hWin == _pNonDocTab->getHSelf()) ||
-						 (hWin == _pNonEditView->getHSelf())) // In the another view group
+
+				if (targetGroupIdx >= 0 && targetGroupIdx != srcGroupIdx)
 				{
-					docGotoAnotherEditView(isInCtrlStat?TransferClone:TransferMove);
+					// Dropped on a different group — move (or clone) buffer there
+					BufferID curBuf = _pEditView->getCurrentBufferID();
+					int srcView = currentView();
+					moveBufferToGroup(curBuf, srcView, targetGroupIdx, isInCtrlStat);
+				}
+				else if (hWin == _pEditView->getHSelf())
+				{
+					// Dropped on the active group's edit view — offer split via drop zone
+					DropZoneInfo dz = _groupContainer.hitTestDropZone(p);
+					if (dz.position == DropPosition::Left || dz.position == DropPosition::Right)
+					{
+						handleTabDropOnGroup(dz.groupIndex, dz.position);
+					}
+					else
+					{
+						if (!_tabPopupDropMenu.isCreated())
+						{
+							wchar_t goToView[32] = L"Move to Other View";
+							wchar_t cloneToView[32] = L"Clone to Other View";
+							vector<MenuItemUnit> itemUnitArray;
+							itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_GOTO_ANOTHER_VIEW, goToView));
+							itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_CLONE_TO_ANOTHER_VIEW, cloneToView));
+							_tabPopupDropMenu.create(_pPublicInterface->getHSelf(), itemUnitArray, _mainMenuHandle);
+							_nativeLangSpeaker.changeLangTabDropContextMenu(_tabPopupDropMenu.getMenuHandle());
+						}
+						_tabPopupDropMenu.display(p);
+					}
 				}
 				else
 				{
-					RECT nppZone{};
-					::GetWindowRect(_pPublicInterface->getHSelf(), &nppZone);
-					bool isInNppZone = (((p.x >= nppZone.left) && (p.x <= nppZone.right)) && (p.y >= nppZone.top) && (p.y <= nppZone.bottom));
-					if (isInNppZone)
+					// Check if in Npp zone but not on any group — try edge-drop to create new group
+					DropZoneInfo dz = _groupContainer.hitTestDropZone(p);
+					if (dz.position == DropPosition::Left || dz.position == DropPosition::Right)
 					{
-						// Do nothing
-						return TRUE;
+						handleTabDropOnGroup(dz.groupIndex, dz.position);
 					}
-					wstring quotFileName = L"\"";
-					quotFileName += _pEditView->getCurrentBuffer()->getFullPathName();
-					quotFileName += L"\"";
-					COPYDATASTRUCT fileNamesData{};
-					fileNamesData.dwData = COPYDATA_FILENAMESW;
-					fileNamesData.lpData = (void *)quotFileName.c_str();
-					fileNamesData.cbData = static_cast<DWORD>((quotFileName.length() + 1) * sizeof(wchar_t));
-
-					HWND hWinParent = ::GetParent(hWin);
-					const rsize_t classNameBufferSize = MAX_PATH;
-					wchar_t className[classNameBufferSize];
-					::GetClassName(hWinParent,className, classNameBufferSize);
-					if (lstrcmp(className, _pPublicInterface->getClassName()) == 0 && hWinParent != _pPublicInterface->getHSelf()) // another Notepad++
+					else
 					{
-						int index = _pDocTab->getCurrentTabIndex();
-						BufferID bufferToClose = notifyDocTab->getBufferByIndex(index);
-						Buffer * buf = MainFileManager.getBufferByID(bufferToClose);
-						int iView = isFromPrimary?MAIN_VIEW:SUB_VIEW;
-						if (buf->isDirty())
+						RECT nppZone{};
+						::GetWindowRect(_pPublicInterface->getHSelf(), &nppZone);
+						bool isInNppZone = (((p.x >= nppZone.left) && (p.x <= nppZone.right)) && (p.y >= nppZone.top) && (p.y <= nppZone.bottom));
+						if (isInNppZone)
 						{
-							_nativeLangSpeaker.messageBox("CannotMoveDoc",
-								_pPublicInterface->getHSelf(),
-								L"Document is modified, save it then try again.",
-								L"Move to new Notepad++ Instance",
-								MB_OK);
+							return TRUE;
+						}
+						wstring quotFileName = L"\"";
+						quotFileName += _pEditView->getCurrentBuffer()->getFullPathName();
+						quotFileName += L"\"";
+						COPYDATASTRUCT fileNamesData{};
+						fileNamesData.dwData = COPYDATA_FILENAMESW;
+						fileNamesData.lpData = (void *)quotFileName.c_str();
+						fileNamesData.cbData = static_cast<DWORD>((quotFileName.length() + 1) * sizeof(wchar_t));
+
+						HWND hWinParent = ::GetParent(hWin);
+						const rsize_t classNameBufferSize = MAX_PATH;
+						wchar_t className[classNameBufferSize];
+						::GetClassName(hWinParent,className, classNameBufferSize);
+						if (lstrcmp(className, _pPublicInterface->getClassName()) == 0 && hWinParent != _pPublicInterface->getHSelf())
+						{
+							int index = _pDocTab->getCurrentTabIndex();
+							BufferID bufferToClose = notifyDocTab->getBufferByIndex(index);
+							Buffer * buf = MainFileManager.getBufferByID(bufferToClose);
+							int iView = isFromPrimary?MAIN_VIEW:SUB_VIEW;
+							if (buf->isDirty())
+							{
+								_nativeLangSpeaker.messageBox("CannotMoveDoc",
+									_pPublicInterface->getHSelf(),
+									L"Document is modified, save it then try again.",
+									L"Move to new Notepad++ Instance",
+									MB_OK);
+							}
+							else
+							{
+								::SendMessage(hWinParent, NPPM_INTERNAL_SWITCHVIEWFROMHWND, 0, reinterpret_cast<LPARAM>(hWin));
+								::SendMessage(hWinParent, WM_COPYDATA, reinterpret_cast<WPARAM>(_pPublicInterface->getHinst()), reinterpret_cast<LPARAM>(&fileNamesData));
+								if (!isInCtrlStat)
+								{
+									fileClose(bufferToClose, iView);
+									if (noOpenedDoc())
+										::SendMessage(_pPublicInterface->getHSelf(), WM_CLOSE, 0, 0);
+								}
+							}
 						}
 						else
 						{
-							::SendMessage(hWinParent, NPPM_INTERNAL_SWITCHVIEWFROMHWND, 0, reinterpret_cast<LPARAM>(hWin));
-							::SendMessage(hWinParent, WM_COPYDATA, reinterpret_cast<WPARAM>(_pPublicInterface->getHinst()), reinterpret_cast<LPARAM>(&fileNamesData));
-							if (!isInCtrlStat)
-							{
-								fileClose(bufferToClose, iView);
-								if (noOpenedDoc())
-									::SendMessage(_pPublicInterface->getHSelf(), WM_CLOSE, 0, 0);
-							}
+							docOpenInNewInstance(isInCtrlStat?TransferClone:TransferMove, p.x, p.y);
 						}
-					}
-					else // Not Notepad++, we open it here
-					{
-						docOpenInNewInstance(isInCtrlStat?TransferClone:TransferMove, p.x, p.y);
 					}
 				}
 			}
-			//break;
+			_groupContainer.hideDropOverlay();
 			sender->resetDraggingPoint();
 			return TRUE;
 		}
@@ -1100,6 +1131,8 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 					itemUnitArray.push_back(MenuItemUnit(0, NULL, L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_GOTO_ANOTHER_VIEW, L"Move to Other View", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_CLONE_TO_ANOTHER_VIEW, L"Clone to Other View", L"Move Document"));
+					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_SPLIT_TO_NEW_GROUP, L"Split to New Group", L"Move Document"));
+					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_CLONE_TO_NEW_GROUP, L"Clone to New Group", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_GOTO_NEW_INSTANCE, L"Move to New Instance", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_LOAD_IN_NEW_INSTANCE, L"Open in New Instance", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_TAB_COLOUR_1, L"Apply Color 1", L"Apply Color to Tab"));

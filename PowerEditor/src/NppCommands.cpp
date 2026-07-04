@@ -2016,10 +2016,7 @@ void Notepad_plus::command(int id)
 				{
 					::ShowWindow(_pMainSplitter->getHSelf(), SW_HIDE);
 
-					if (bothActive())
-						_pMainWindow = &_subSplitter;
-					else
-						_pMainWindow = _pDocTab;
+					_pMainWindow = &_groupContainer;
 
 					::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 
@@ -2028,7 +2025,7 @@ void Notepad_plus::command(int id)
 				}
 				else if ((isUDDlgDocked)&&(!isUDDlgVisible))
 				{
-					auto* pWindow = bothActive() ? &_subSplitter : dynamic_cast<Window*>(_pDocTab);
+					Window* pWindow = &_groupContainer;
 
 					if (!_pMainSplitter)
 					{
@@ -3555,6 +3552,34 @@ void Notepad_plus::command(int id)
 			::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
             break;
 
+        case IDM_VIEW_SPLIT_TO_NEW_GROUP:
+        {
+            if (!_pEditView) break;
+            BufferID curBuf = _pEditView->getCurrentBufferID();
+            int srcView = currentView();
+            int newViewId = createNewEditorGroup();
+            int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+            if (newGroupIdx >= 0)
+            {
+                moveBufferToGroup(curBuf, srcView, newGroupIdx, false);
+                _groupContainer.setActiveGroup(newGroupIdx);
+            }
+            ::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+            break;
+        }
+
+        case IDM_VIEW_CLONE_TO_NEW_GROUP:
+        {
+            BufferID curBuf = _pEditView->getCurrentBufferID();
+            int srcView = currentView();
+            int newViewId = createNewEditorGroup();
+            int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+            if (newGroupIdx >= 0)
+                moveBufferToGroup(curBuf, srcView, newGroupIdx, true);
+            ::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+            break;
+        }
+
         case IDM_VIEW_GOTO_NEW_INSTANCE :
             docOpenInNewInstance(TransferMove);
             break;
@@ -4529,6 +4554,8 @@ void Notepad_plus::command(int id)
 			case IDM_VIEW_GOTO_END:
 			case IDM_VIEW_GOTO_ANOTHER_VIEW:
 			case IDM_VIEW_CLONE_TO_ANOTHER_VIEW:
+			case IDM_VIEW_SPLIT_TO_NEW_GROUP:
+			case IDM_VIEW_CLONE_TO_NEW_GROUP:
 			case IDM_VIEW_GOTO_NEW_INSTANCE:
 			case IDM_VIEW_LOAD_IN_NEW_INSTANCE:
 			case IDM_VIEW_SYNSCROLLV:

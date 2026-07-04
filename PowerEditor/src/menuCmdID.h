@@ -409,6 +409,8 @@
     #define    IDM_VIEW_LOAD_IN_NEW_INSTANCE     10004
     #define    IDM_VIEW_GOTO_START               10005
     #define    IDM_VIEW_GOTO_END                 10006
+    #define    IDM_VIEW_SPLIT_TO_NEW_GROUP        10007
+    #define    IDM_VIEW_CLONE_TO_NEW_GROUP        10008
 
 #define    IDM_FORMAT    (IDM + 5000)
     #define    IDM_FORMAT_TODOS             (IDM_FORMAT + 1)

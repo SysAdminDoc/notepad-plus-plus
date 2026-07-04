@@ -167,6 +167,7 @@
     <ClCompile Include="..\src\ScintillaComponent\SmartHighlighter.cpp" />
     <ClCompile Include="..\src\WinControls\SplitterContainer\Splitter.cpp" />
     <ClCompile Include="..\src\WinControls\SplitterContainer\SplitterContainer.cpp" />
+    <ClCompile Include="..\src\WinControls\EditorGroup\EditorGroupContainer.cpp" />
     <ClCompile Include="..\src\WinControls\StaticDialog\StaticDialog.cpp" />
     <ClCompile Include="..\src\WinControls\StatusBar\StatusBar.cpp" />
     <ClCompile Include="..\src\WinControls\TabBar\TabBar.cpp" />
@@ -330,6 +331,8 @@
     <ClInclude Include="..\src\ScintillaComponent\SmartHighlighter.h" />
     <ClInclude Include="..\src\WinControls\SplitterContainer\Splitter.h" />
     <ClInclude Include="..\src\WinControls\SplitterContainer\SplitterContainer.h" />
+    <ClInclude Include="..\src\WinControls\EditorGroup\EditorGroup.h" />
+    <ClInclude Include="..\src\WinControls\EditorGroup\EditorGroupContainer.h" />
     <ClInclude Include="..\src\WinControls\StaticDialog\StaticDialog.h" />
     <ClInclude Include="..\src\WinControls\StatusBar\StatusBar.h" />
     <ClInclude Include="..\src\WinControls\TabBar\TabBar.h" />

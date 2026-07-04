@@ -19,6 +19,7 @@
 #include "ScintillaEditView.h"
 #include "DocTabView.h"
 #include "SplitterContainer.h"
+#include "EditorGroupContainer.h"
 #include "FindReplaceDlg.h"
 #include "AboutDlg.h"
 #include "RunDlg.h"
@@ -304,6 +305,9 @@ private:
     SplitterContainer* _pMainSplitter = nullptr;
     SplitterContainer _subSplitter;
 
+	EditorGroupContainer _groupContainer;
+	int _nextGroupId = 2;
+
     ContextMenu _tabPopupMenu;
 	ContextMenu _tabPopupDropMenu;
 	ContextMenu _fileSwitcherMultiFilePopupMenu;
@@ -462,6 +466,16 @@ private:
 	bool isEmpty(); // true if we have 1 view with 1 clean, untitled doc
 
 	int switchEditViewTo(int gid);	//activate other view (set focus etc)
+
+	DocTabView* getDocTabByView(int whichOne);
+	ScintillaEditView* getEditViewByView(int whichOne);
+	AutoCompletion* getAutoCompleteByView(int whichOne);
+	int getViewIdForGroup(int groupIndex);
+	void initEditorGroupContainer(HWND hwnd);
+	int createNewEditorGroup();
+	void removeEditorGroup(int groupIndex);
+	void moveBufferToGroup(BufferID id, int srcView, int destGroupIndex, bool isClone = false);
+	void handleTabDropOnGroup(int destGroupIndex, DropPosition pos);
 
 	void docGotoAnotherEditView(FileTransferMode mode);	//TransferMode
 	void docOpenInNewInstance(FileTransferMode mode, int x = 0, int y = 0);

@@ -1351,7 +1351,10 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 				NMHDR	nmhdr{};
 				nmhdr.code = NM_RCLICK;
 
-				nmhdr.hwndFrom = (whichView == MAIN_VIEW)?_mainDocTab.getHSelf():_subDocTab.getHSelf();
+				{
+				DocTabView* targetTab = getDocTabByView(whichView);
+				nmhdr.hwndFrom = targetTab ? targetTab->getHSelf() : _mainDocTab.getHSelf();
+			}
 
 				nmhdr.idFrom = ::GetDlgCtrlID(nmhdr.hwndFrom);
 				::SendMessage(hwnd, WM_NOTIFY, nmhdr.idFrom, reinterpret_cast<LPARAM>(&nmhdr));
@@ -2896,7 +2899,7 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 
 		case WM_LBUTTONDBLCLK:
 		{
-			DocTabView* curTabView = (currentView() == MAIN_VIEW) ? &_mainDocTab : &_subDocTab;
+			DocTabView* curTabView = _pDocTab ? _pDocTab : &_mainDocTab;
 			::SendMessage(curTabView->getHSelf(), WM_LBUTTONDBLCLK, wParam, lParam);
 
 			return TRUE;
@@ -3285,7 +3288,7 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 
 		case NPPM_INTERNAL_ISFOCUSEDTAB:
 		{
-			HWND hTabToTest = (currentView() == MAIN_VIEW)?_mainDocTab.getHSelf():_subDocTab.getHSelf();
+			HWND hTabToTest = _pDocTab ? _pDocTab->getHSelf() : _mainDocTab.getHSelf();
 			return reinterpret_cast<HWND>(lParam) == hTabToTest;
 		}
 
