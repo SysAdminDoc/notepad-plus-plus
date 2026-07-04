@@ -760,37 +760,52 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 				POINT p = sender->getDraggingPoint();
 				HWND hWin = ::WindowFromPoint(p);
 
-				// Check if dropped on any editor group's tab bar or edit view
 				int targetGroupIdx = _groupContainer.getGroupIndexByHwnd(hWin);
 				int srcGroupIdx = -1;
-				// Find which group the sender belongs to
+				int srcViewId = -1;
+				DocTabView* srcDocTab = nullptr;
+
 				for (int gi = 0; gi < _groupContainer.groupCount(); ++gi)
 				{
 					auto& g = _groupContainer.getGroup(gi);
 					if (g.docTab && g.docTab->getHSelf() == sender->getHSelf())
 					{
 						srcGroupIdx = gi;
+						srcViewId = g.id;
+						srcDocTab = g.docTab;
 						break;
 					}
 				}
 
+				BufferID draggedBuf = BUFFER_INVALID;
+				if (srcDocTab)
+				{
+					int activeTab = srcDocTab->getCurrentTabIndex();
+					if (activeTab >= 0)
+						draggedBuf = srcDocTab->getBufferByIndex(activeTab);
+				}
+
+				if (draggedBuf == BUFFER_INVALID)
+				{
+					sender->resetDraggingPoint();
+					return TRUE;
+				}
+
 				if (targetGroupIdx >= 0 && targetGroupIdx != srcGroupIdx)
 				{
-					BufferID curBuf = _pEditView->getCurrentBufferID();
-					int srcView = currentView();
-					moveBufferToGroup(curBuf, srcView, targetGroupIdx, true);
+					moveBufferToGroup(draggedBuf, srcViewId, targetGroupIdx, true);
 					::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
-						reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
+						reinterpret_cast<WPARAM>(draggedBuf), static_cast<LPARAM>(srcViewId));
 				}
-				else if (hWin == _pEditView->getHSelf())
+				else if (srcGroupIdx >= 0)
 				{
-					// Dropped on the active group's edit view — offer split via drop zone
 					DropZoneInfo dz = _groupContainer.hitTestDropZone(p);
 					if (dz.position == DropPosition::Left || dz.position == DropPosition::Right)
 					{
+						switchEditViewTo(srcViewId);
 						handleTabDropOnGroup(dz.groupIndex, dz.position);
 					}
-					else
+					else if (srcGroupIdx == 0)
 					{
 						if (!_tabPopupDropMenu.isCreated())
 						{
@@ -807,7 +822,6 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 				}
 				else
 				{
-					// Check if in Npp zone but not on any group — try edge-drop to create new group
 					DropZoneInfo dz = _groupContainer.hitTestDropZone(p);
 					if (dz.position == DropPosition::Left || dz.position == DropPosition::Right)
 					{
