@@ -9599,3 +9599,78 @@ void Notepad_plus::handleTabDropOnGroup(int destGroupIndex, DropPosition pos)
 			removeEditorGroup(srcGroupIdx);
 	}
 }
+
+
+void Notepad_plus::splitAllTabsToGroups()
+{
+	DocTabView* srcTab = &_mainDocTab;
+	size_t nbTabs = srcTab->nbItem();
+	if (nbTabs <= 1)
+		return;
+
+	std::vector<BufferID> buffers;
+	for (size_t i = 0; i < nbTabs; ++i)
+		buffers.push_back(srcTab->getBufferByIndex(i));
+
+	for (size_t i = 1; i < buffers.size(); ++i)
+	{
+		int newViewId = createNewEditorGroup();
+		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+		if (newGroupIdx >= 0)
+			moveBufferToGroup(buffers[i], MAIN_VIEW, newGroupIdx, true);
+	}
+
+	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+}
+
+
+void Notepad_plus::mergeAllGroupsToMain()
+{
+	std::vector<BufferID> buffersToAdd;
+
+	for (int i = _groupContainer.groupCount() - 1; i >= 0; --i)
+	{
+		auto& g = _groupContainer.getGroup(i);
+		if (!g.isDynamic)
+			continue;
+
+		if (g.docTab)
+		{
+			for (size_t t = 0; t < g.docTab->nbItem(); ++t)
+			{
+				BufferID bufId = g.docTab->getBufferByIndex(t);
+				if (_mainDocTab.getIndexByBuffer(bufId) < 0)
+					buffersToAdd.push_back(bufId);
+			}
+		}
+	}
+
+	for (BufferID bufId : buffersToAdd)
+	{
+		MainFileManager.addBufferReference(bufId, &_mainEditView);
+		_mainDocTab.addBuffer(bufId);
+	}
+
+	while (_groupContainer.groupCount() > 1)
+	{
+		int lastIdx = _groupContainer.groupCount() - 1;
+		auto& g = _groupContainer.getGroup(lastIdx);
+		if (!g.isDynamic)
+			break;
+
+		if (g.docTab) g.docTab->display(false);
+		if (g.editView) g.editView->display(false);
+
+		_groupContainer.removeGroup(lastIdx);
+	}
+
+	if (_mainDocTab.nbItem() > 0)
+	{
+		BufferID firstBuf = _mainDocTab.getBufferByIndex(0);
+		_mainDocTab.activateBuffer(firstBuf);
+		_mainEditView.activateBuffer(firstBuf, true);
+	}
+
+	switchEditViewTo(MAIN_VIEW);
+	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+}

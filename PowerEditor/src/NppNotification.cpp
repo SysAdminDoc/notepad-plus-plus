@@ -1169,6 +1169,9 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_CLONE_TO_ANOTHER_VIEW, L"Clone to Other View", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_SPLIT_TO_NEW_GROUP, L"Split to New Group", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_CLONE_TO_NEW_GROUP, L"Clone to New Group", L"Move Document"));
+					itemUnitArray.push_back(MenuItemUnit(0, NULL, L"Move Document"));
+					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_SPLIT_ALL_TABS, L"Split All Tabs to Columns", L"Move Document"));
+					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_MERGE_ALL_GROUPS, L"Merge All Columns", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_GOTO_NEW_INSTANCE, L"Move to New Instance", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_LOAD_IN_NEW_INSTANCE, L"Open in New Instance", L"Move Document"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_TAB_COLOUR_1, L"Apply Color 1", L"Apply Color to Tab"));

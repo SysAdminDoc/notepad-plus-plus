@@ -26,6 +26,7 @@
 
 #include "AutoCompletion.h"
 #include "DocTabView.h"
+#include "NppDarkMode.h"
 #include "ScintillaEditView.h"
 
 static constexpr auto EGC_CLASS_NAME = L"nppEditorGroupContainer";
@@ -366,18 +367,23 @@ void EditorGroupContainer::recalcLayout()
 {
 	RECT clientRect{};
 	getClientRect(clientRect);
-	int totalWidth = clientRect.right;
+	int viewWidth = clientRect.right;
 	int totalHeight = clientRect.bottom;
 
 	int n = static_cast<int>(_groups.size());
 	_groupRects.resize(n);
 	_splitterRects.resize(std::max(0, n - 1));
 
-	if (n == 0 || totalWidth <= 0 || totalHeight <= 0)
+	if (n == 0 || viewWidth <= 0 || totalHeight <= 0)
 		return;
 
 	int totalSplitterWidth = (n - 1) * _splitterGap;
-	int availableWidth = totalWidth - totalSplitterWidth;
+
+	int neededWidth = n * _minColumnWidth + totalSplitterWidth;
+	bool needsScroll = neededWidth > viewWidth;
+
+	int layoutWidth = needsScroll ? neededWidth : viewWidth;
+	int availableWidth = layoutWidth - totalSplitterWidth;
 	if (availableWidth < n)
 		availableWidth = n;
 
@@ -387,9 +393,13 @@ void EditorGroupContainer::recalcLayout()
 	for (int i = 0; i < n; ++i)
 	{
 		int groupWidth;
-		if (i == n - 1)
+		if (needsScroll)
 		{
-			groupWidth = totalWidth - xPos;
+			groupWidth = _minColumnWidth;
+		}
+		else if (i == n - 1)
+		{
+			groupWidth = layoutWidth - xPos;
 		}
 		else
 		{
@@ -406,6 +416,7 @@ void EditorGroupContainer::recalcLayout()
 			xPos += _splitterGap;
 		}
 	}
+	_totalContentWidth = xPos;
 }
 
 
@@ -421,7 +432,7 @@ void EditorGroupContainer::applyLayout() const
 		if (i < static_cast<int>(_groupRects.size()) && _groups[i].isValid())
 		{
 			RECT rc = _groupRects[i];
-			rc.left += containerOrigin.x;
+			rc.left += containerOrigin.x - _scrollOffset;
 			rc.top += containerOrigin.y;
 			_groups[i].docTab->reSizeTo(rc);
 			::SetWindowPos(_groups[i].docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0,
@@ -429,6 +440,32 @@ void EditorGroupContainer::applyLayout() const
 		}
 	}
 	::InvalidateRect(_hSelf, nullptr, TRUE);
+}
+
+
+void EditorGroupContainer::updateScrollBar()
+{
+	RECT clientRect{};
+	getClientRect(clientRect);
+	int viewWidth = clientRect.right;
+
+	if (_totalContentWidth > viewWidth && _groups.size() > 1)
+	{
+		SCROLLINFO si = {};
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+		si.nMin = 0;
+		si.nMax = _totalContentWidth - 1;
+		si.nPage = viewWidth;
+		si.nPos = _scrollOffset;
+		::SetScrollInfo(_hSelf, SB_HORZ, &si, TRUE);
+		::ShowScrollBar(_hSelf, SB_HORZ, TRUE);
+	}
+	else
+	{
+		_scrollOffset = 0;
+		::ShowScrollBar(_hSelf, SB_HORZ, FALSE);
+	}
 }
 
 
@@ -479,10 +516,11 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 		case WM_ERASEBKGND:
 		{
 			HDC hdc = reinterpret_cast<HDC>(wParam);
+			COLORREF splitterColor = NppDarkMode::isEnabled() ? NppDarkMode::getBackgroundColor() : ::GetSysColor(COLOR_3DFACE);
 			for (const auto& sr : _splitterRects)
 			{
-				RECT drawRect = { sr.left, sr.top, sr.left + sr.right, sr.top + sr.bottom };
-				HBRUSH brush = ::CreateSolidBrush(::GetSysColor(COLOR_3DFACE));
+				RECT drawRect = { sr.left - _scrollOffset, sr.top, sr.left - _scrollOffset + sr.right, sr.top + sr.bottom };
+				HBRUSH brush = ::CreateSolidBrush(splitterColor);
 				::FillRect(hdc, &drawRect, brush);
 				::DeleteObject(brush);
 			}
@@ -493,10 +531,11 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 		{
 			PAINTSTRUCT ps;
 			HDC hdc = ::BeginPaint(_hSelf, &ps);
+			COLORREF splitterColor = NppDarkMode::isEnabled() ? NppDarkMode::getBackgroundColor() : ::GetSysColor(COLOR_3DFACE);
 			for (const auto& sr : _splitterRects)
 			{
-				RECT drawRect = { sr.left, sr.top, sr.left + sr.right, sr.top + sr.bottom };
-				HBRUSH brush = ::CreateSolidBrush(::GetSysColor(COLOR_3DFACE));
+				RECT drawRect = { sr.left - _scrollOffset, sr.top, sr.left - _scrollOffset + sr.right, sr.top + sr.bottom };
+				HBRUSH brush = ::CreateSolidBrush(splitterColor);
 				::FillRect(hdc, &drawRect, brush);
 				::DeleteObject(brush);
 			}
@@ -581,6 +620,37 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 		{
 			recalcLayout();
 			applyLayout();
+			updateScrollBar();
+			return 0;
+		}
+
+		case WM_HSCROLL:
+		{
+			RECT clientRect{};
+			getClientRect(clientRect);
+			int viewWidth = clientRect.right;
+			int maxScroll = (_totalContentWidth > viewWidth) ? (_totalContentWidth - viewWidth) : 0;
+
+			int newPos = _scrollOffset;
+			switch (LOWORD(wParam))
+			{
+				case SB_LINELEFT:    newPos -= 40; break;
+				case SB_LINERIGHT:   newPos += 40; break;
+				case SB_PAGELEFT:    newPos -= viewWidth / 2; break;
+				case SB_PAGERIGHT:   newPos += viewWidth / 2; break;
+				case SB_THUMBTRACK:
+				case SB_THUMBPOSITION: newPos = HIWORD(wParam); break;
+				case SB_LEFT:        newPos = 0; break;
+				case SB_RIGHT:       newPos = maxScroll; break;
+			}
+			if (newPos < 0) newPos = 0;
+			if (newPos > maxScroll) newPos = maxScroll;
+			if (newPos != _scrollOffset)
+			{
+				_scrollOffset = newPos;
+				applyLayout();
+				updateScrollBar();
+			}
 			return 0;
 		}
 

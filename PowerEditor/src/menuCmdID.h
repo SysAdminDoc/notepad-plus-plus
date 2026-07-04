@@ -411,6 +411,8 @@
     #define    IDM_VIEW_GOTO_END                 10006
     #define    IDM_VIEW_SPLIT_TO_NEW_GROUP        10007
     #define    IDM_VIEW_CLONE_TO_NEW_GROUP        10008
+    #define    IDM_VIEW_SPLIT_ALL_TABS            10009
+    #define    IDM_VIEW_MERGE_ALL_GROUPS          10010
 
 #define    IDM_FORMAT    (IDM + 5000)
     #define    IDM_FORMAT_TODOS             (IDM_FORMAT + 1)

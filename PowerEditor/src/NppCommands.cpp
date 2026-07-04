@@ -3580,6 +3580,14 @@ void Notepad_plus::command(int id)
             break;
         }
 
+        case IDM_VIEW_SPLIT_ALL_TABS:
+            splitAllTabsToGroups();
+            break;
+
+        case IDM_VIEW_MERGE_ALL_GROUPS:
+            mergeAllGroupsToMain();
+            break;
+
         case IDM_VIEW_GOTO_NEW_INSTANCE :
             docOpenInNewInstance(TransferMove);
             break;
@@ -4556,6 +4564,8 @@ void Notepad_plus::command(int id)
 			case IDM_VIEW_CLONE_TO_ANOTHER_VIEW:
 			case IDM_VIEW_SPLIT_TO_NEW_GROUP:
 			case IDM_VIEW_CLONE_TO_NEW_GROUP:
+			case IDM_VIEW_SPLIT_ALL_TABS:
+			case IDM_VIEW_MERGE_ALL_GROUPS:
 			case IDM_VIEW_GOTO_NEW_INSTANCE:
 			case IDM_VIEW_LOAD_IN_NEW_INSTANCE:
 			case IDM_VIEW_SYNSCROLLV:

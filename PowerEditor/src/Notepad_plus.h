@@ -476,6 +476,8 @@ private:
 	void removeEditorGroup(int groupIndex);
 	void moveBufferToGroup(BufferID id, int srcView, int destGroupIndex, bool isClone = false);
 	void handleTabDropOnGroup(int destGroupIndex, DropPosition pos);
+	void splitAllTabsToGroups();
+	void mergeAllGroupsToMain();
 
 	void docGotoAnotherEditView(FileTransferMode mode);	//TransferMode
 	void docOpenInNewInstance(FileTransferMode mode, int x = 0, int y = 0);

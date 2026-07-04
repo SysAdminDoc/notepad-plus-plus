@@ -60,10 +60,16 @@ public:
 
 	int splitterSize() const { return _splitterGap; }
 
+	void setMinColumnWidth(int w) { _minColumnWidth = w; }
+	int scrollOffset() const { return _scrollOffset; }
+
 private:
 	std::vector<EditorGroup> _groups;
 	int _activeGroupIndex = 0;
 	int _splitterGap = 4;
+	int _minColumnWidth = 200;
+	int _scrollOffset = 0;
+	int _totalContentWidth = 0;
 
 	bool _isDraggingSplitter = false;
 	int _dragSplitterIndex = -1;
@@ -87,4 +93,5 @@ private:
 	int splitterHitTest(POINT clientPt) const;
 	void createDropOverlay();
 	void normalizeRatios();
+	void updateScrollBar();
 };
