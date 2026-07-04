@@ -477,9 +477,6 @@ BEGIN
         MENUITEM "Load Sess&ion...",                 IDM_FILE_LOADSESSION
         MENUITEM "Save Sess&ion...",                 IDM_FILE_SAVESESSION
         MENUITEM SEPARATOR
-        MENUITEM "&Print...",                        IDM_FILE_PRINT
-        MENUITEM "Print No&w",                       IDM_FILE_PRINTNOW
-        MENUITEM SEPARATOR
         MENUITEM "E&xit",                            IDM_FILE_EXIT
     END
 
@@ -1276,53 +1273,11 @@ BEGIN
         MENUITEM "Edit Popup ContextMenu",      IDM_SETTING_EDITCONTEXTMENU
     END
 
-    POPUP "T&ools"
-    BEGIN
-        POPUP "MD5"
-        BEGIN
-            MENUITEM "Generate...",                            IDM_TOOL_MD5_GENERATE
-            MENUITEM "Generate from files...",                 IDM_TOOL_MD5_GENERATEFROMFILE
-            MENUITEM "Generate from selection into clipboard", IDM_TOOL_MD5_GENERATEINTOCLIPBOARD
-        END
-        POPUP "SHA-1"
-        BEGIN
-            MENUITEM "Generate...", IDM_TOOL_SHA1_GENERATE
-            MENUITEM "Generate from files...", IDM_TOOL_SHA1_GENERATEFROMFILE
-            MENUITEM "Generate from selection into clipboard", IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD
-        END
-        POPUP "SHA-256"
-        BEGIN
-            MENUITEM "Generate...", IDM_TOOL_SHA256_GENERATE
-            MENUITEM "Generate from files...", IDM_TOOL_SHA256_GENERATEFROMFILE
-            MENUITEM "Generate from selection into clipboard", IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD
-        END
-        POPUP "SHA-512"
-        BEGIN
-            MENUITEM "Generate...", IDM_TOOL_SHA512_GENERATE
-            MENUITEM "Generate from files...", IDM_TOOL_SHA512_GENERATEFROMFILE
-            MENUITEM "Generate from selection into clipboard", IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD
-        END
-    END
-
-    POPUP "&Macro"
-    BEGIN
-        MENUITEM "Start Re&cording",                   IDM_MACRO_STARTRECORDINGMACRO
-        MENUITEM "S&top Recording",                    IDM_MACRO_STOPRECORDINGMACRO
-        MENUITEM "&Playback",                          IDM_MACRO_PLAYBACKRECORDEDMACRO
-        MENUITEM "&Save Current Recorded Macro...",    IDM_MACRO_SAVECURRENTMACRO
-        MENUITEM "&Run a Macro Multiple Times...",     IDM_MACRO_RUNMULTIMACRODLG
-    END
-
     POPUP "&Run"
     BEGIN
         MENUITEM "&Run...",    IDM_EXECUTE
 		MENUITEM SEPARATOR
 		MENUITEM "Validate shortcuts.xml",    IDM_EXECUTE_VALIDATE_SHORTCUTSXML
-    END
-
-    POPUP "&Plugins"
-    BEGIN
-        MENUITEM "Open Plugins Folder...",    IDM_SETTING_OPENPLUGINSDIR
     END
 
     POPUP "&Window"
