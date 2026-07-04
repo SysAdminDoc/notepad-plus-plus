@@ -283,6 +283,7 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 		case NPPM_INTERNAL_REFRESHDARKMODE:
 		{
 			refreshDarkMode(static_cast<bool>(wParam));
+			updateMenuOverflowButton();
 			// Notify plugins that Dark Mode changed
 			SCNotification scnN{};
 			scnN.nmhdr.code = NPPN_DARKMODECHANGED;
@@ -307,6 +308,8 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 		case WM_DRAWITEM:
 		{
 			DRAWITEMSTRUCT *dis = reinterpret_cast<DRAWITEMSTRUCT *>(lParam);
+			if (drawMenuOverflowButton(dis))
+				return TRUE;
 			if (dis->CtlType == ODT_TAB)
 				return ::SendMessage(dis->hwndItem, WM_DRAWITEM, wParam, lParam);
 			break;
@@ -689,6 +692,7 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 
 			getMainClientRect(rc);
 			_dockingManager.reSizeTo(rc);
+			updateMenuOverflowButton();
 
 			if (_pDocMap)
 			{
@@ -856,7 +860,12 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 
 		case WM_COMMAND:
 		{
-			if (HIWORD(wParam) == SCEN_SETFOCUS)
+			if (reinterpret_cast<HWND>(lParam) == _hMenuOverflowButton && HIWORD(wParam) == BN_CLICKED)
+			{
+				showMenuOverflow();
+				return TRUE;
+			}
+			else if (HIWORD(wParam) == SCEN_SETFOCUS)
 			{
 				HWND hMain = _mainEditView.getHSelf(), hSec = _subEditView.getHSelf();
 				HWND hFocus = reinterpret_cast<HWND>(lParam);
@@ -3311,6 +3320,7 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 				::SetMenu(hwnd, _mainMenuHandle);
 			else
 				::SetMenu(hwnd, NULL);
+			updateMenuOverflowButton();
 
 			return isHidden;
 		}

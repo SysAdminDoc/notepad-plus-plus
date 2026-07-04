@@ -316,6 +316,7 @@ private:
     StatusBar _statusBar;
 	ReBar _rebarTop;
 	ReBar _rebarBottom;
+	HWND _hMenuOverflowButton = nullptr;
 
 	// Dialog
 	FindReplaceDlg _findReplaceDlg;
@@ -420,6 +421,10 @@ private:
 
 	BOOL notify(SCNotification *notification);
 	void command(int id);
+	void initMenuOverflowButton(HWND hwnd);
+	void updateMenuOverflowButton() const;
+	bool drawMenuOverflowButton(const DRAWITEMSTRUCT* drawInfo) const;
+	void showMenuOverflow();
 
 //Document management
 	UCHAR _mainWindowStatus = 0; //For 2 views and user dialog if docked

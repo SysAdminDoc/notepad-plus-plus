@@ -54,6 +54,64 @@ enum tb_stat {tb_saved, tb_unsaved, tb_ro, tb_monitored};
 #define DIR_RIGHT false
 
 static constexpr int IDI_SEPARATOR_ICON = -1;
+static constexpr int IDC_MENU_OVERFLOW_BUTTON = 0x5F01;
+static constexpr COLORREF MOCHA_BASE = 0x002e1e1e;     // #1e1e2e
+static constexpr COLORREF MOCHA_SURFACE0 = 0x00443231; // #313244
+static constexpr COLORREF MOCHA_SURFACE1 = 0x00594b45; // #45475a
+static constexpr COLORREF MOCHA_TEXT = 0x00f4d6cd;     // #cdd6f4
+static constexpr COLORREF MOCHA_BLUE = 0x00fab489;     // #89b4fa
+
+static bool isRootMenuChromeShortcut(const wchar_t* text)
+{
+	return text && text[0] != L'\0' && text[1] == L'\0' &&
+		(text[0] == L'+' || text[0] == 0xFF0B || text[0] == 0x25BC || text[0] == 0x2715 || text[0] == 0x00D7);
+}
+
+static HMENU cloneMenuTree(HMENU sourceMenu, bool isRootMenu = false)
+{
+	HMENU clonedMenu = ::CreatePopupMenu();
+	if (!clonedMenu)
+		return nullptr;
+
+	const int itemCount = ::GetMenuItemCount(sourceMenu);
+	for (int i = 0; i < itemCount; ++i)
+	{
+		wchar_t textBuffer[512] = {};
+		MENUITEMINFO itemInfo{};
+		itemInfo.cbSize = sizeof(itemInfo);
+		itemInfo.fMask = MIIM_FTYPE | MIIM_STATE | MIIM_ID | MIIM_SUBMENU | MIIM_STRING;
+		itemInfo.dwTypeData = textBuffer;
+		itemInfo.cch = _countof(textBuffer) - 1;
+
+		if (!::GetMenuItemInfo(sourceMenu, i, TRUE, &itemInfo))
+			continue;
+
+		if (isRootMenu && isRootMenuChromeShortcut(textBuffer))
+			continue;
+
+		MENUITEMINFO clonedItemInfo{};
+		clonedItemInfo.cbSize = sizeof(clonedItemInfo);
+		clonedItemInfo.fMask = MIIM_FTYPE | MIIM_STATE | MIIM_ID | MIIM_STRING;
+		clonedItemInfo.fType = itemInfo.fType;
+		clonedItemInfo.fState = itemInfo.fState;
+		clonedItemInfo.wID = itemInfo.wID;
+		clonedItemInfo.dwTypeData = textBuffer;
+
+		if (itemInfo.hSubMenu)
+		{
+			HMENU clonedSubMenu = cloneMenuTree(itemInfo.hSubMenu);
+			if (clonedSubMenu)
+			{
+				clonedItemInfo.fMask |= MIIM_SUBMENU;
+				clonedItemInfo.hSubMenu = clonedSubMenu;
+			}
+		}
+
+		::InsertMenuItem(clonedMenu, i, TRUE, &clonedItemInfo);
+	}
+
+	return clonedMenu;
+}
 
 static constexpr ToolBarButtonUnit toolBarIcons[]{
     {IDM_FILE_NEW,                     IDI_NEW_ICON,               IDI_NEW_ICON,                  IDI_NEW_ICON2,              IDI_NEW_ICON2,                 IDI_NEW_ICON_DM,               IDI_NEW_ICON_DM,                  IDI_NEW_ICON_DM2,              IDI_NEW_ICON_DM2,                 IDR_FILENEW},
@@ -453,6 +511,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 
 	initEditorGroupContainer(hwnd);
 	_pMainWindow = &_groupContainer;
+	initMenuOverflowButton(hwnd);
 
 	_dockingManager.init(_pPublicInterface->getHinst(), hwnd, &_pMainWindow);
 
@@ -860,6 +919,12 @@ LRESULT Notepad_plus::init(HWND hwnd)
 
 void Notepad_plus::killAllChildren()
 {
+	if (_hMenuOverflowButton)
+	{
+		::DestroyWindow(_hMenuOverflowButton);
+		_hMenuOverflowButton = nullptr;
+	}
+
 	_toolBar.destroy();
 	_rebarTop.destroy();
 	_rebarBottom.destroy();
@@ -4576,6 +4641,112 @@ void Notepad_plus::getMainClientRect(RECT &rc) const
     _pPublicInterface->getClientRect(rc);
 	rc.top += _rebarTop.getHeight();
 	rc.bottom -= rc.top + _rebarBottom.getHeight() + _statusBar.getHeight();
+}
+
+void Notepad_plus::initMenuOverflowButton(HWND hwnd)
+{
+	if (_hMenuOverflowButton)
+		return;
+
+	_hMenuOverflowButton = ::CreateWindowEx(
+		0, L"BUTTON", L"",
+		WS_CHILD | BS_OWNERDRAW | BS_NOTIFY,
+		0, 0, 1, 1,
+		hwnd,
+		reinterpret_cast<HMENU>(static_cast<UINT_PTR>(IDC_MENU_OVERFLOW_BUTTON)),
+		_pPublicInterface->getHinst(),
+		nullptr);
+
+	if (_hMenuOverflowButton)
+		updateMenuOverflowButton();
+}
+
+void Notepad_plus::updateMenuOverflowButton() const
+{
+	if (!_hMenuOverflowButton || !::IsWindow(_hMenuOverflowButton))
+		return;
+
+	const NppGUI& nppGUI = NppParameters::getInstance().getNppGUI();
+	const bool showButton = !nppGUI._menuBarShow;
+	if (!showButton)
+	{
+		::ShowWindow(_hMenuOverflowButton, SW_HIDE);
+		return;
+	}
+
+	RECT clientRect{};
+	_pPublicInterface->getClientRect(clientRect);
+	const UINT dpi = DPIManagerV2::getDpiForWindow(_pPublicInterface->getHSelf());
+	const int margin = DPIManagerV2::scale(4, dpi);
+	const int buttonSize = DPIManagerV2::scale(24, dpi);
+	const int top = _rebarTop.getHeight() + DPIManagerV2::scale(2, dpi);
+	const int left = std::max(margin, static_cast<int>(clientRect.right) - buttonSize - margin);
+
+	::SetWindowPos(_hMenuOverflowButton, HWND_TOP, left, top, buttonSize, buttonSize, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+	::InvalidateRect(_hMenuOverflowButton, nullptr, TRUE);
+}
+
+bool Notepad_plus::drawMenuOverflowButton(const DRAWITEMSTRUCT* drawInfo) const
+{
+	if (!drawInfo || drawInfo->hwndItem != _hMenuOverflowButton)
+		return false;
+
+	const bool isDarkMode = NppDarkMode::isEnabled();
+	const bool isPressed = (drawInfo->itemState & ODS_SELECTED) != 0;
+	const bool isFocused = (drawInfo->itemState & ODS_FOCUS) != 0;
+	const COLORREF bgColor = isDarkMode ? (isPressed ? MOCHA_SURFACE1 : MOCHA_SURFACE0) : ::GetSysColor(isPressed ? COLOR_3DLIGHT : COLOR_BTNFACE);
+	const COLORREF edgeColor = isDarkMode ? (isFocused ? MOCHA_BLUE : MOCHA_SURFACE1) : ::GetSysColor(COLOR_3DSHADOW);
+	const COLORREF dotColor = isDarkMode ? MOCHA_TEXT : ::GetSysColor(COLOR_BTNTEXT);
+
+	HBRUSH bgBrush = ::CreateSolidBrush(bgColor);
+	HPEN edgePen = ::CreatePen(PS_SOLID, 1, edgeColor);
+	RECT rc = drawInfo->rcItem;
+	::InflateRect(&rc, -1, -1);
+	HGDIOBJ oldPen = ::SelectObject(drawInfo->hDC, edgePen);
+	HGDIOBJ oldBrush = ::SelectObject(drawInfo->hDC, bgBrush);
+	::RoundRect(drawInfo->hDC, rc.left, rc.top, rc.right, rc.bottom, 8, 8);
+	::SelectObject(drawInfo->hDC, oldBrush);
+	::SelectObject(drawInfo->hDC, oldPen);
+	::DeleteObject(bgBrush);
+	::DeleteObject(edgePen);
+
+	const int centerX = (drawInfo->rcItem.left + drawInfo->rcItem.right) / 2;
+	const int centerY = (drawInfo->rcItem.top + drawInfo->rcItem.bottom) / 2;
+	const int dotRadius = 2;
+	const int dotGap = 6;
+	HBRUSH dotBrush = ::CreateSolidBrush(dotColor);
+	HPEN dotPen = ::CreatePen(PS_SOLID, 1, dotColor);
+	oldPen = ::SelectObject(drawInfo->hDC, dotPen);
+	oldBrush = ::SelectObject(drawInfo->hDC, dotBrush);
+	for (int i = -1; i <= 1; ++i)
+	{
+		const int x = centerX + i * dotGap;
+		::Ellipse(drawInfo->hDC, x - dotRadius, centerY - dotRadius, x + dotRadius + 1, centerY + dotRadius + 1);
+	}
+	::SelectObject(drawInfo->hDC, oldBrush);
+	::SelectObject(drawInfo->hDC, oldPen);
+	::DeleteObject(dotBrush);
+	::DeleteObject(dotPen);
+
+	return true;
+}
+
+void Notepad_plus::showMenuOverflow()
+{
+	if (!_mainMenuHandle || !_hMenuOverflowButton)
+		return;
+
+	RECT buttonRect{};
+	::GetWindowRect(_hMenuOverflowButton, &buttonRect);
+	HWND hwnd = _pPublicInterface->getHSelf();
+	HMENU popupMenu = cloneMenuTree(_mainMenuHandle, true);
+	if (!popupMenu)
+		return;
+
+	::SetForegroundWindow(hwnd);
+	::TrackPopupMenuEx(popupMenu, TPM_RIGHTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, buttonRect.right, buttonRect.bottom + 2, hwnd, nullptr);
+	::DestroyMenu(popupMenu);
+	::PostMessage(hwnd, WM_NULL, 0, 0);
 }
 
 void Notepad_plus::showView(int whichOne)

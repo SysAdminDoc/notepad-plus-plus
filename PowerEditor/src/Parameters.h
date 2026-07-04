@@ -715,7 +715,7 @@ struct NppGUI final
 	TbIconInfo _tbIconInfo{ toolBarStatusType::TB_STANDARD, FluentColor::defaultColor, 0, false };
 	bool _toolbarShow = false;
 	bool _statusBarShow = true;
-	bool _menuBarShow = true;
+	bool _menuBarShow = false;
 
 	int _tabStatus = (TAB_DRAWTOPBAR | TAB_DRAWINACTIVETAB | TAB_DRAGNDROP | TAB_REDUCE | TAB_CLOSEBUTTON | TAB_PINBUTTON);
 	bool _forceTabbarVisible = false;
