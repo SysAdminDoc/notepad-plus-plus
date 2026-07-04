@@ -705,16 +705,45 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			BufferID bufToRemove = reinterpret_cast<BufferID>(wParam);
 			int srcView = static_cast<int>(lParam);
 			DocTabView* srcTab = getDocTabByView(srcView);
-			if (srcTab && srcTab->nbItem() > 1)
-			{
-				removeBufferFromView(bufToRemove, srcView);
-			}
-			else if (srcTab && srcTab->nbItem() == 1)
+			ScintillaEditView* srcEditView = getEditViewByView(srcView);
+			if (!srcTab || !srcEditView)
+				break;
+
+			int tabIndex = srcTab->getIndexByBuffer(bufToRemove);
+			if (tabIndex < 0)
+				break;
+
+			if (srcTab->nbItem() <= 1)
 			{
 				Buffer* buf = MainFileManager.getBufferByID(bufToRemove);
-				if (buf && (!buf->isUntitled() || buf->isDirty()))
-					removeBufferFromView(bufToRemove, srcView);
+				if (!buf || (buf->isUntitled() && !buf->isDirty()))
+					break;
 			}
+
+			int activeIdx = srcTab->getCurrentTabIndex();
+			if (activeIdx == tabIndex && srcTab->nbItem() > 1)
+			{
+				int nextTab = (tabIndex > 0) ? tabIndex - 1 : 1;
+				BufferID nextBuf = srcTab->getBufferByIndex(nextTab > tabIndex ? tabIndex : nextTab);
+				srcTab->activateBuffer(nextBuf);
+				srcEditView->activateBuffer(nextBuf, false);
+			}
+			else if (activeIdx == tabIndex && srcTab->nbItem() == 1)
+			{
+				BufferID newBuf = MainFileManager.newEmptyDocument();
+				MainFileManager.addBufferReference(newBuf, srcEditView);
+				srcTab->setBuffer(0, newBuf);
+				srcTab->activateBuffer(newBuf);
+				srcEditView->activateBuffer(newBuf, true);
+			}
+
+			if (srcTab->nbItem() > 1 || activeIdx != tabIndex)
+			{
+				srcTab->closeBuffer(bufToRemove);
+				MainFileManager.closeBuffer(bufToRemove, srcEditView);
+			}
+
+			::SendMessage(hwnd, WM_SIZE, 0, 0);
 			result = TRUE;
 			break;
 		}

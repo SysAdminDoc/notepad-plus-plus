@@ -9544,18 +9544,15 @@ void Notepad_plus::moveBufferToGroup(BufferID id, int srcView, int destGroupInde
 	destEditView->defineDocType(destEditView->getCurrentBuffer()->getLangType());
 	destEditView->performGlobalStyles();
 
-	if (!isClone && (srcView == MAIN_VIEW || srcView == SUB_VIEW))
-	{
-		DocTabView* srcTab = getDocTabByView(srcView);
-		Buffer* buf = MainFileManager.getBufferByID(id);
-		bool isSrcLastCleanUntitled = srcTab && srcTab->nbItem() == 1 && !buf->isDirty() && buf->isUntitled();
-		if (!isSrcLastCleanUntitled)
-			removeBufferFromView(id, srcView);
-	}
-
 	::InvalidateRect(destTab->getHSelf(), nullptr, TRUE);
-	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 	switchEditViewTo(destView);
+	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+
+	if (!isClone)
+	{
+		::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
+			reinterpret_cast<WPARAM>(id), static_cast<LPARAM>(srcView));
+	}
 }
 
 
