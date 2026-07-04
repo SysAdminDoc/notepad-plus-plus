@@ -779,6 +779,8 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 					BufferID curBuf = _pEditView->getCurrentBufferID();
 					int srcView = currentView();
 					moveBufferToGroup(curBuf, srcView, targetGroupIdx, true);
+					::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
+						reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
 				}
 				else if (hWin == _pEditView->getHSelf())
 				{

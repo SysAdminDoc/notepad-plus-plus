@@ -9571,17 +9571,28 @@ void Notepad_plus::handleTabDropOnGroup(int destGroupIndex, DropPosition pos)
 		return;
 
 	int srcView = currentView();
+	int targetGroupIdx = -1;
 
 	if (pos == DropPosition::Center)
 	{
 		moveBufferToGroup(curBuf, srcView, destGroupIndex, true);
+		targetGroupIdx = destGroupIndex;
 	}
 	else if (pos == DropPosition::Right || pos == DropPosition::Left)
 	{
 		int newViewId = createNewEditorGroup();
 		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
 		if (newGroupIdx >= 0)
+		{
 			moveBufferToGroup(curBuf, srcView, newGroupIdx, true);
+			targetGroupIdx = newGroupIdx;
+		}
+	}
+
+	if (targetGroupIdx >= 0)
+	{
+		::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
+			reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
 	}
 }
 

@@ -700,6 +700,25 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			break;
 		}
 
+		case WM_EDITORGROUP_DEFERRED_REMOVE:
+		{
+			BufferID bufToRemove = reinterpret_cast<BufferID>(wParam);
+			int srcView = static_cast<int>(lParam);
+			DocTabView* srcTab = getDocTabByView(srcView);
+			if (srcTab && srcTab->nbItem() > 1)
+			{
+				removeBufferFromView(bufToRemove, srcView);
+			}
+			else if (srcTab && srcTab->nbItem() == 1)
+			{
+				Buffer* buf = MainFileManager.getBufferByID(bufToRemove);
+				if (buf && (!buf->isUntitled() || buf->isDirty()))
+					removeBufferFromView(bufToRemove, srcView);
+			}
+			result = TRUE;
+			break;
+		}
+
 		case WM_MOVE:
 		{
 			result = TRUE;
