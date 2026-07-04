@@ -166,3 +166,25 @@ PowerEditor/src/MISC/md5/RCa06792
 *.db
 *.sln
 *.opendb
+
+#-------------------------------------------------------------------------------
+# Claude Code / AI agent files
+CLAUDE.md
+AGENTS.md
+CODEX_CHANGELOG.md
+.claude/
+
+#-------------------------------------------------------------------------------
+# Notepad++ personal data / session cache
+session.xml
+config.xml
+langs.xml
+stylers.xml
+shortcuts.xml
+contextMenu.xml
+nativeLang.xml
+functionList.xml
+*.dmp
+NppDump.dmp
+backup/
+cloud/
