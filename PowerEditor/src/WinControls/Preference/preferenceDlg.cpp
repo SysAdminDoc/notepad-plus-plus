@@ -857,7 +857,7 @@ intptr_t CALLBACK GeneralSubDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM
 						NativeLangSpeaker* pNativeSpeaker = nppParam.getNativeLangSpeaker();
 						pNativeSpeaker->messageBox("Need2Restart2ShowMenuShortcuts",
 							_hSelf,
-							L"Notepad++ needs to be restarted to show menu-bar action glyphs.",
+							L"Notepad++ needs to be restarted to update menu command hints.",
 							L"Notepad++ needs to be restarted",
 							MB_OK | MB_APPLMODAL);
 
