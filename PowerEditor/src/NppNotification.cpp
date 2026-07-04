@@ -31,17 +31,42 @@ using namespace std;
 // Only for 2 main Scintilla editors
 BOOL Notepad_plus::notify(SCNotification *notification)
 {
-	//Important, keep track of which element generated the message
 	bool isFromPrimary = (_mainEditView.getHSelf() == notification->nmhdr.hwndFrom || _mainDocTab.getHSelf() == notification->nmhdr.hwndFrom);
 	bool isFromSecondary = !isFromPrimary && (_subEditView.getHSelf() == notification->nmhdr.hwndFrom || _subDocTab.getHSelf() == notification->nmhdr.hwndFrom);
-	
-	ScintillaEditView * notifyView = nullptr;
-	if (isFromPrimary)
-		notifyView = &_mainEditView;
-	else if (isFromSecondary)
-		notifyView = &_subEditView;
 
-	DocTabView *notifyDocTab = isFromPrimary?&_mainDocTab:&_subDocTab;
+	ScintillaEditView * notifyView = nullptr;
+	DocTabView *notifyDocTab = nullptr;
+	int notifyViewId = -1;
+
+	if (isFromPrimary)
+	{
+		notifyView = &_mainEditView;
+		notifyDocTab = &_mainDocTab;
+		notifyViewId = MAIN_VIEW;
+	}
+	else if (isFromSecondary)
+	{
+		notifyView = &_subEditView;
+		notifyDocTab = &_subDocTab;
+		notifyViewId = SUB_VIEW;
+	}
+	else
+	{
+		int dynIdx = _groupContainer.getGroupIndexByHwnd(reinterpret_cast<HWND>(notification->nmhdr.hwndFrom));
+		if (dynIdx >= 0)
+		{
+			auto& g = _groupContainer.getGroup(dynIdx);
+			notifyView = g.editView;
+			notifyDocTab = g.docTab;
+			notifyViewId = g.id;
+			isFromPrimary = false;
+			isFromSecondary = false;
+		}
+		else
+		{
+			notifyDocTab = &_subDocTab;
+		}
+	}
 	TBHDR * tabNotification = (TBHDR*) notification;
 	switch (notification->nmhdr.code)
 	{
@@ -851,7 +876,19 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 			int index = tabNotification->_tabOrigin;
 			BufferID bufferToClose = notifyDocTab->getBufferByIndex(index);
 			Buffer * buf = MainFileManager.getBufferByID(bufferToClose);
-			int iView = isFromPrimary ? MAIN_VIEW : SUB_VIEW;
+			int iView = notifyViewId >= 0 ? notifyViewId : (isFromPrimary ? MAIN_VIEW : SUB_VIEW);
+
+			// If this is the last tab in a dynamic group, remove the group instead
+			if (notifyViewId >= 2 && notifyDocTab->nbItem() <= 1)
+			{
+				int groupIdx = _groupContainer.getGroupIndexById(notifyViewId);
+				if (groupIdx >= 0)
+				{
+					removeEditorGroup(groupIdx);
+					return TRUE;
+				}
+			}
+
 			if (buf->isDirty())
 			{
 				activateBuffer(bufferToClose, iView);
@@ -859,8 +896,7 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 
 			BufferID bufferToClose2ndCheck = notifyDocTab->getBufferByIndex(index);
 
-			if ((bufferToClose == bufferToClose2ndCheck) // Here we make sure the buffer is the same to prevent from the situation that the buffer to be close was already closed,
-			                                             // because the preceding call "activateBuffer(bufferToClose, iView)" could finally lead "doClose" call as well (in case of file non-existent).
+			if ((bufferToClose == bufferToClose2ndCheck)
 				&& fileClose(bufferToClose, iView))
 				checkDocState();
 

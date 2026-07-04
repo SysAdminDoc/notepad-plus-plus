@@ -1142,9 +1142,16 @@ bool Notepad_plus::fileClose(BufferID id, int curView)
 	if (curView != -1)
 		viewToClose = curView;
 
-	// Determine if it's a cloned buffer
-	DocTabView* nonCurrentTab = (viewToClose == MAIN_VIEW) ? &_subDocTab : &_mainDocTab;
-	bool isCloned = nonCurrentTab->getIndexByBuffer(bufferID) != -1;
+	bool isCloned = false;
+	for (int gi = 0; gi < _groupContainer.groupCount(); ++gi)
+	{
+		auto& g = _groupContainer.getGroup(gi);
+		if (g.id != viewToClose && g.docTab && g.docTab->getIndexByBuffer(bufferID) != -1)
+		{
+			isCloned = true;
+			break;
+		}
+	}
 
 	if ((buf->isUntitled() && buf->docLength() == 0) || isCloned)
 	{

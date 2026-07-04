@@ -7198,6 +7198,10 @@ bool Notepad_plus::noOpenedDoc() const
 {
 	if (_mainDocTab.isVisible() && _subDocTab.isVisible())
 		return false;
+
+	if (_groupContainer.groupCount() > 1)
+		return false;
+
 	if (_pDocTab->nbItem() == 1)
 	{
 		BufferID buffer = _pDocTab->getBufferByIndex(0);
@@ -9467,18 +9471,9 @@ int Notepad_plus::createNewEditorGroup()
 	docTab->display(true);
 	editView->display(true);
 
-	BufferID newBuf = MainFileManager.newEmptyDocument();
-	MainFileManager.addBufferReference(newBuf, editView);
-	docTab->addBuffer(newBuf);
-	docTab->activateBuffer(newBuf);
-	editView->activateBuffer(newBuf, true);
-	editView->defineDocType(editView->getCurrentBuffer()->getLangType());
-
 	TabBarPlus::triggerOwnerDrawTabbar(&(docTab->dpiManager()));
 
 	::SetWindowPos(docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-	::InvalidateRect(docTab->getHSelf(), nullptr, TRUE);
-	::UpdateWindow(docTab->getHSelf());
 
 	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 	return viewId;
