@@ -222,7 +222,7 @@ namespace NppDarkMode
 		HEXRGB(0xE0E0E0),   // textColor
 		HEXRGB(0xC0C0C0),   // darkerTextColor
 		HEXRGB(0x808080),   // disabledTextColor
-		HEXRGB(0xFFFF00),   // linkTextColor
+		HEXRGB(0x89B4FA),   // linkTextColor
 		HEXRGB(0x646464),   // edgeColor
 		HEXRGB(0x9B9B9B),   // hotEdgeColor
 		HEXRGB(0x484848)    // disabledEdgeColor
