@@ -67,6 +67,9 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 			notifyDocTab = &_subDocTab;
 		}
 	}
+	if (notifyView && !notifyView->getCurrentBuffer())
+		return FALSE;
+
 	TBHDR * tabNotification = (TBHDR*) notification;
 	switch (notification->nmhdr.code)
 	{
