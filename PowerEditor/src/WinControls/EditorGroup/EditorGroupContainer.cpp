@@ -58,7 +58,7 @@ void EditorGroupContainer::create(HINSTANCE hInst, HWND parent)
 	}
 
 	_hSelf = ::CreateWindowEx(
-		0, EGC_CLASS_NAME, L"EditorGroupContainer",
+		WS_EX_TRANSPARENT, EGC_CLASS_NAME, L"EditorGroupContainer",
 		WS_CHILD | WS_CLIPCHILDREN,
 		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 		_hParent, NULL, _hInst, this);
@@ -426,6 +426,8 @@ void EditorGroupContainer::applyLayout() const
 			rc.left += containerOrigin.x - _scrollOffset;
 			rc.top += containerOrigin.y;
 			_groups[i].docTab->reSizeTo(rc);
+			::SetWindowPos(_groups[i].editView->getHSelf(), HWND_TOP, 0, 0, 0, 0,
+				SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 			::SetWindowPos(_groups[i].docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0,
 				SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 		}
@@ -532,6 +534,15 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 			}
 			::EndPaint(_hSelf, &ps);
 			return 0;
+		}
+
+		case WM_NCHITTEST:
+		{
+			POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+			::ScreenToClient(_hSelf, &pt);
+			if (splitterHitTest(pt) >= 0)
+				return HTCLIENT;
+			return HTTRANSPARENT;
 		}
 
 		case WM_SETCURSOR:
