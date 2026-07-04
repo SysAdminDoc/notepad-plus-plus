@@ -713,7 +713,19 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			if (tabIndex < 0)
 				break;
 
-			if (srcTab->nbItem() <= 1)
+			bool isDynamicGroup = (srcView >= 2);
+
+			if (isDynamicGroup && srcTab->nbItem() <= 1)
+			{
+				int groupIdx = _groupContainer.getGroupIndexById(srcView);
+				if (groupIdx >= 0)
+					removeEditorGroup(groupIdx);
+				::SendMessage(hwnd, WM_SIZE, 0, 0);
+				result = TRUE;
+				break;
+			}
+
+			if (srcTab->nbItem() <= 1 && !isDynamicGroup)
 			{
 				Buffer* buf = MainFileManager.getBufferByID(bufToRemove);
 				if (!buf || (buf->isUntitled() && !buf->isDirty()))
