@@ -9476,6 +9476,7 @@ int Notepad_plus::createNewEditorGroup()
 
 	TabBarPlus::triggerOwnerDrawTabbar(&(docTab->dpiManager()));
 
+	::SetWindowPos(docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 	::InvalidateRect(docTab->getHSelf(), nullptr, TRUE);
 	::UpdateWindow(docTab->getHSelf());
 

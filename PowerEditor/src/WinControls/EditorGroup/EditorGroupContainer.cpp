@@ -424,6 +424,8 @@ void EditorGroupContainer::applyLayout() const
 			rc.left += containerOrigin.x;
 			rc.top += containerOrigin.y;
 			_groups[i].docTab->reSizeTo(rc);
+			::SetWindowPos(_groups[i].docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0,
+				SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 		}
 	}
 	::InvalidateRect(_hSelf, nullptr, TRUE);
