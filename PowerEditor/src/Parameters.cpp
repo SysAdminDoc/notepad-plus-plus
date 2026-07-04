@@ -3281,6 +3281,52 @@ bool NppParameters::getSessionFromXmlTree(const NppXml::Document& pSessionDoc, S
 		}
 	}
 
+	session._editorGroups.clear();
+	for (NppXml::Element groupNode = NppXml::firstChildElement(sessionRoot, "editorGroup");
+		groupNode;
+		groupNode = NppXml::nextSiblingElement(groupNode, "editorGroup"))
+	{
+		EditorGroupSession egs;
+		egs._activeIndex = static_cast<size_t>(NppXml::intAttribute(groupNode, "activeIndex", 0));
+		const char* ratioStr = NppXml::attribute(groupNode, "widthRatio");
+		egs._widthRatio = ratioStr ? atof(ratioStr) : 1.0;
+
+		for (NppXml::Element childNode = NppXml::firstChildElement(groupNode, "File");
+			childNode;
+			childNode = NppXml::nextSiblingElement(childNode, "File"))
+		{
+			const char* fileName = NppXml::attribute(childNode, "filename");
+			if (fileName && fileName[0])
+			{
+				const std::wstring wstrFileName = wmc.char2wchar(fileName, SC_CP_UTF8);
+				const char* langName = NppXml::attribute(childNode, "lang");
+				const std::wstring wstrLangName = langName ? wmc.char2wchar(langName, SC_CP_UTF8) : L"";
+				const int encoding = NppXml::intAttribute(childNode, "encoding", -1);
+				const bool isUserReadOnly = getBoolAttribute(childNode, "userReadOnly");
+				const bool isPinned = getBoolAttribute(childNode, "tabPinned");
+
+				Position position{
+					._firstVisibleLine = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "firstVisibleLine", 0)),
+					._startPos = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "startPos", 0)),
+					._endPos = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "endPos", 0)),
+					._xOffset = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "xOffset", 0)),
+					._selMode = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "selMode", 0)),
+					._scrollWidth = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "scrollWidth", 1)),
+					._offset = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "offset", 0)),
+					._wrapCount = static_cast<intptr_t>(NppXml::int64Attribute(childNode, "wrapCount", 0))
+				};
+
+				sessionFileInfo sfi(wstrFileName.c_str(), wstrLangName.c_str(), encoding,
+					isUserReadOnly, isPinned, false, position, L"", FILETIME{}, MapPosition{});
+				sfi._individualTabColour = NppXml::intAttribute(childNode, "tabColourId", -1);
+				egs._files.push_back(sfi);
+			}
+		}
+
+		if (!egs._files.empty())
+			session._editorGroups.push_back(egs);
+	}
+
 	return true;
 }
 
@@ -4447,6 +4493,39 @@ void NppParameters::writeSession(const Session& session, const wchar_t* fileName
 			{
 				NppXml::Element fileNameNode = NppXml::createChildElement(fileBrowserRootNode, "root");
 				NppXml::setAttribute(fileNameNode, "foldername", wstring2string(fbRoot));
+			}
+		}
+
+		for (size_t eg = 0; eg < session._editorGroups.size(); ++eg)
+		{
+			const auto& egs = session._editorGroups[eg];
+			NppXml::Element groupNode = NppXml::createChildElement(sessionNode, "editorGroup");
+			NppXml::setAttribute(groupNode, "activeIndex", egs._activeIndex);
+			char ratioStr[32];
+			snprintf(ratioStr, sizeof(ratioStr), "%.6f", egs._widthRatio);
+			NppXml::setAttribute(groupNode, "widthRatio", ratioStr);
+
+			for (const auto& vsFile : egs._files)
+			{
+				NppXml::Element fileNode = NppXml::createChildElement(groupNode, "File");
+				NppXml::setAttribute(fileNode, "firstVisibleLine", vsFile._firstVisibleLine);
+				NppXml::setAttribute(fileNode, "xOffset", vsFile._xOffset);
+				NppXml::setAttribute(fileNode, "scrollWidth", vsFile._scrollWidth);
+				NppXml::setAttribute(fileNode, "startPos", vsFile._startPos);
+				NppXml::setAttribute(fileNode, "endPos", vsFile._endPos);
+				NppXml::setAttribute(fileNode, "selMode", vsFile._selMode);
+				NppXml::setAttribute(fileNode, "offset", vsFile._offset);
+				NppXml::setAttribute(fileNode, "wrapCount", vsFile._wrapCount);
+				NppXml::setAttribute(fileNode, "lang", wstring2string(vsFile._langName));
+				NppXml::setAttribute(fileNode, "encoding", vsFile._encoding);
+				setBoolAttribute(fileNode, "userReadOnly", (vsFile._isUserReadOnly && !vsFile._isMonitoring));
+				NppXml::setAttribute(fileNode, "filename", wstring2string(vsFile._fileName));
+				NppXml::setAttribute(fileNode, "backupFilePath", wstring2string(vsFile._backupFilePath));
+				NppXml::setAttribute(fileNode, "originalFileLastModifTimestamp", vsFile._originalFileLastModifTimestamp.dwLowDateTime);
+				NppXml::setAttribute(fileNode, "originalFileLastModifTimestampHigh", vsFile._originalFileLastModifTimestamp.dwHighDateTime);
+				NppXml::setAttribute(fileNode, "tabColourId", vsFile._individualTabColour);
+				setBoolAttribute(fileNode, "RTL", vsFile._isRTL);
+				setBoolAttribute(fileNode, "tabPinned", vsFile._isPinned);
 			}
 		}
 	}

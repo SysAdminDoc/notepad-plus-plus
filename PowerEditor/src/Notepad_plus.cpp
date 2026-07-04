@@ -6451,6 +6451,41 @@ void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includeUntitled
 		}
 	}
 	_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, oldDoc);
+
+	session._editorGroups.clear();
+	for (int gi = 0; gi < _groupContainer.groupCount(); ++gi)
+	{
+		auto& g = _groupContainer.getGroup(gi);
+		if (!g.isDynamic || !g.docTab || !g.editView)
+			continue;
+
+		EditorGroupSession egs;
+		egs._activeIndex = g.docTab->getCurrentTabIndex();
+		egs._widthRatio = g.widthRatio;
+
+		for (size_t i = 0; i < g.docTab->nbItem(); ++i)
+		{
+			BufferID bufID = g.docTab->getBufferByIndex(i);
+			Buffer* buf = MainFileManager.getBufferByID(bufID);
+			if (buf->isUntitled() && buf->docLength() == 0)
+				continue;
+			if (!includeUntitledDoc && !doesFileExist(buf->getFullPathName()))
+				continue;
+
+			wstring langName = getLangFromMenu(buf);
+			sessionFileInfo sfi(buf->getFullPathName(), langName.c_str(), buf->getEncoding(),
+				buf->getUserReadOnly(), buf->isPinned(), buf->isUntitledTabRenamed(),
+				buf->getPosition(g.editView), buf->getBackupFileName().c_str(),
+				buf->getLastModifiedFileTimestamp(), buf->getMapPosition());
+			sfi._isMonitoring = buf->isMonitoringOn();
+			sfi._individualTabColour = g.docTab->getIndividualTabColourId(static_cast<int>(i));
+			sfi._isRTL = buf->isRTL();
+			egs._files.push_back(sfi);
+		}
+
+		if (!egs._files.empty())
+			session._editorGroups.push_back(egs);
+	}
 }
 
 //ONLY CALL IN CASE OF EMERGENCY: EXCEPTION

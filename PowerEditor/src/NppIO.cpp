@@ -2847,6 +2847,59 @@ bool Notepad_plus::loadSession(Session & session, bool isSnapshotMode, const wch
 		checkModifiedDocument(false); // so here we launch file-detection for all placeholders manually
 	}
 
+	for (const auto& egs : session._editorGroups)
+	{
+		int newViewId = createNewEditorGroup();
+		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+		if (newGroupIdx < 0)
+			continue;
+
+		auto& g = _groupContainer.getGroup(newGroupIdx);
+		g.widthRatio = egs._widthRatio;
+
+		bool firstBuf = true;
+		for (const auto& sfi : egs._files)
+		{
+			const wchar_t* pFn = sfi._fileName.c_str();
+			if (!doesFileExist(pFn))
+				continue;
+
+			BufferID bufID = doOpen(pFn, false, false, sfi._encoding);
+			if (bufID == BUFFER_INVALID)
+				continue;
+
+			MainFileManager.addBufferReference(bufID, g.editView);
+			if (firstBuf)
+			{
+				g.editView->activateBuffer(bufID, true);
+				g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
+				g.editView->performGlobalStyles();
+				g.docTab->display(true);
+				g.editView->display(true);
+				g.docTab->addBuffer(bufID);
+				g.docTab->activateBuffer(bufID);
+				firstBuf = false;
+			}
+			else
+			{
+				g.docTab->addBuffer(bufID);
+			}
+		}
+
+		if (firstBuf)
+		{
+			removeEditorGroup(newGroupIdx);
+		}
+		else
+		{
+			TabBarPlus::triggerOwnerDrawTabbar(&(g.docTab->dpiManager()));
+			::SetWindowPos(g.docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+		}
+	}
+
+	if (_groupContainer.groupCount() > 1)
+		::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+
 	return allSessionFilesLoaded;
 }
 

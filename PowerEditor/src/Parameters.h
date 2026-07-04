@@ -145,6 +145,13 @@ struct sessionFileInfo : public Position
 };
 
 
+struct EditorGroupSession
+{
+	std::vector<sessionFileInfo> _files;
+	size_t _activeIndex = 0;
+	double _widthRatio = 1.0;
+};
+
 struct Session
 {
 	size_t nbMainFiles() const { return _mainViewFiles.size(); }
@@ -157,6 +164,7 @@ struct Session
 	std::vector<sessionFileInfo> _mainViewFiles;
 	std::vector<sessionFileInfo> _subViewFiles;
 	std::vector<std::wstring> _fileBrowserRoots;
+	std::vector<EditorGroupSession> _editorGroups;
 };
 
 
