@@ -4866,8 +4866,10 @@ int Notepad_plus::switchEditViewTo(int gid)
 			break;
 		}
 	}
-	if (!_pNonDocTab) _pNonDocTab = &_mainDocTab;
-	if (!_pNonEditView) _pNonEditView = &_mainEditView;
+	if (!_pNonDocTab)
+		_pNonDocTab = (newView == MAIN_VIEW) ? &_subDocTab : &_mainDocTab;
+	if (!_pNonEditView)
+		_pNonEditView = (newView == MAIN_VIEW) ? &_subEditView : &_mainEditView;
 
 	_pEditView->beSwitched();
     _pEditView->grabFocus();	//set the focus
@@ -9591,12 +9593,12 @@ void Notepad_plus::handleTabDropOnGroup(int destGroupIndex, DropPosition pos)
 		{
 			auto& g = _groupContainer.getGroup(targetGroupIdx);
 			MainFileManager.addBufferReference(curBuf, g.editView);
-			g.docTab->addBuffer(curBuf);
-			g.docTab->activateBuffer(curBuf);
 			g.editView->activateBuffer(curBuf, true);
 			g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
 			g.docTab->display(true);
 			g.editView->display(true);
+			g.docTab->addBuffer(curBuf);
+			g.docTab->activateBuffer(curBuf);
 			switchEditViewTo(newViewId);
 			::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
 				reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
@@ -9624,12 +9626,12 @@ void Notepad_plus::splitAllTabsToGroups()
 		{
 			auto& g = _groupContainer.getGroup(newGroupIdx);
 			MainFileManager.addBufferReference(buffers[i], g.editView);
-			g.docTab->addBuffer(buffers[i]);
-			g.docTab->activateBuffer(buffers[i]);
 			g.editView->activateBuffer(buffers[i], true);
 			g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
 			g.docTab->display(true);
 			g.editView->display(true);
+			g.docTab->addBuffer(buffers[i]);
+			g.docTab->activateBuffer(buffers[i]);
 		}
 	}
 
@@ -9670,6 +9672,17 @@ void Notepad_plus::mergeAllGroupsToMain()
 		auto& g = _groupContainer.getGroup(lastIdx);
 		if (!g.isDynamic)
 			break;
+
+		if (g.docTab && g.editView)
+		{
+			for (size_t t = 0; t < g.docTab->nbItem(); ++t)
+			{
+				BufferID bufId = g.docTab->getBufferByIndex(t);
+				Buffer* buf = MainFileManager.getBufferByID(bufId);
+				if (buf)
+					buf->removeReference(g.editView);
+			}
+		}
 
 		if (g.docTab) g.docTab->display(false);
 		if (g.editView) g.editView->display(false);

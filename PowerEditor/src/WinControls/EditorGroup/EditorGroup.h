@@ -32,6 +32,7 @@ struct EditorGroup
 	double widthRatio = 1.0;
 
 	bool isValid() const { return docTab != nullptr && editView != nullptr; }
+	bool isDestroyed() const { return docTab == nullptr && editView == nullptr && isDynamic; }
 };
 
 enum class DropPosition

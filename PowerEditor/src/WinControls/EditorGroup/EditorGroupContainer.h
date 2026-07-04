@@ -24,7 +24,6 @@
 
 #define WM_EDITORGROUP_SPLITTER_MOVED (WM_APP + 0x100)
 #define WM_EDITORGROUP_DEFERRED_REMOVE (WM_APP + 0x101)
-#define WM_EDITORGROUP_REMOVE_PLACEHOLDER (WM_APP + 0x102)
 
 class EditorGroupContainer : public Window
 {

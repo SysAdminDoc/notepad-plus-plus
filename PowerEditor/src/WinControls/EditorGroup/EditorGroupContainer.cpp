@@ -142,8 +142,6 @@ void EditorGroupContainer::removeGroup(int index)
 	if (_activeGroupIndex < 0)
 		_activeGroupIndex = 0;
 
-	normalizeRatios();
-
 	if (g.docTab) g.docTab->display(false);
 	if (g.editView) g.editView->display(false);
 
@@ -468,7 +466,8 @@ int EditorGroupContainer::splitterHitTest(POINT clientPt) const
 	{
 		const RECT& r = _splitterRects[i];
 		int hitMargin = 3;
-		if (clientPt.x >= r.left - hitMargin && clientPt.x <= r.left + r.right + hitMargin &&
+		int scrolledLeft = r.left - _scrollOffset;
+		if (clientPt.x >= scrolledLeft - hitMargin && clientPt.x <= scrolledLeft + r.right + hitMargin &&
 			clientPt.y >= r.top && clientPt.y <= r.top + r.bottom)
 		{
 			return i;
@@ -562,7 +561,7 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 		{
 			POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 			int idx = splitterHitTest(pt);
-			if (idx >= 0)
+			if (idx >= 0 && idx + 1 < static_cast<int>(_groups.size()))
 			{
 				_isDraggingSplitter = true;
 				_dragSplitterIndex = idx;
@@ -577,7 +576,8 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 
 		case WM_MOUSEMOVE:
 		{
-			if (_isDraggingSplitter && _dragSplitterIndex >= 0)
+			if (_isDraggingSplitter && _dragSplitterIndex >= 0 &&
+				_dragSplitterIndex + 1 < static_cast<int>(_groups.size()))
 			{
 				POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 				int deltaX = pt.x - _dragStartPoint.x;

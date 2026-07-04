@@ -3562,13 +3562,13 @@ void Notepad_plus::command(int id)
             {
                 auto& g = _groupContainer.getGroup(newGroupIdx);
                 MainFileManager.addBufferReference(curBuf, g.editView);
-                g.docTab->addBuffer(curBuf);
-                g.docTab->activateBuffer(curBuf);
                 g.editView->activateBuffer(curBuf, true);
                 g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
                 g.editView->performGlobalStyles();
                 g.docTab->display(true);
                 g.editView->display(true);
+                g.docTab->addBuffer(curBuf);
+                g.docTab->activateBuffer(curBuf);
                 TabBarPlus::triggerOwnerDrawTabbar(&(g.docTab->dpiManager()));
                 ::SetWindowPos(g.docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 switchEditViewTo(newViewId);
@@ -3588,13 +3588,13 @@ void Notepad_plus::command(int id)
             {
                 auto& g = _groupContainer.getGroup(newGroupIdx);
                 MainFileManager.addBufferReference(curBuf, g.editView);
-                g.docTab->addBuffer(curBuf);
-                g.docTab->activateBuffer(curBuf);
                 g.editView->activateBuffer(curBuf, true);
                 g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
                 g.editView->performGlobalStyles();
                 g.docTab->display(true);
                 g.editView->display(true);
+                g.docTab->addBuffer(curBuf);
+                g.docTab->activateBuffer(curBuf);
                 TabBarPlus::triggerOwnerDrawTabbar(&(g.docTab->dpiManager()));
                 ::SetWindowPos(g.docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
