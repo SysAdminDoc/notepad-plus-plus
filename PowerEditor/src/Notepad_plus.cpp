@@ -738,22 +738,6 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	_runMacroDlg.init(_pPublicInterface->getHinst(), hwnd);
 	_documentPeeker.init(_pPublicInterface->getHinst(), hwnd);
 
-	_md5FromFilesDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_md5FromFilesDlg.setHashType(hash_md5);
-	_md5FromTextDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_md5FromTextDlg.setHashType(hash_md5);
-	_sha2FromFilesDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_sha2FromFilesDlg.setHashType(hash_sha256);
-	_sha2FromTextDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_sha2FromTextDlg.setHashType(hash_sha256);
-	_sha1FromFilesDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_sha1FromFilesDlg.setHashType(hash_sha1);
-	_sha1FromTextDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_sha1FromTextDlg.setHashType(hash_sha1);
-	_sha512FromFilesDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_sha512FromFilesDlg.setHashType(hash_sha512);
-	_sha512FromTextDlg.init(_pPublicInterface->getHinst(), hwnd);
-	_sha512FromTextDlg.setHashType(hash_sha512);
 
 
 	//--User Define Dialog Section--//
@@ -7294,24 +7278,16 @@ bool Notepad_plus::reloadLang()
 		_nativeLangSpeaker.changeDlgLang(_runDlg.getHSelf(), "Run");
 	}
 
-	if (_md5FromFilesDlg.isCreated())
 	{
-		_nativeLangSpeaker.changeDlgLang(_md5FromFilesDlg.getHSelf(), "MD5FromFilesDlg");
 	}
 
-	if (_md5FromTextDlg.isCreated())
 	{
-		_nativeLangSpeaker.changeDlgLang(_md5FromTextDlg.getHSelf(), "MD5FromTextDlg");
 	}
 
-	if (_sha2FromFilesDlg.isCreated())
 	{
-		_nativeLangSpeaker.changeDlgLang(_sha2FromFilesDlg.getHSelf(), "SHA256FromFilesDlg");
 	}
 
-	if (_sha2FromTextDlg.isCreated())
 	{
-		_nativeLangSpeaker.changeDlgLang(_sha2FromTextDlg.getHSelf(), "SHA256FromTextDlg");
 	}
 
 	if (_runMacroDlg.isCreated())
@@ -8460,7 +8436,7 @@ void Notepad_plus::showQuote(const QuoteParams* quote) const
 void Notepad_plus::minimizeDialogs()
 {
 	static StaticDialog* modelessDlgs[] = {&_findReplaceDlg, &_aboutDlg, &_debugInfoDlg, &_runDlg, &_goToLineDlg, &_colEditorDlg, &_configStyleDlg,\
-		&_preference, &_pluginsAdminDlg, &_findCharsInRangeDlg, &_md5FromFilesDlg, &_md5FromTextDlg, &_sha2FromFilesDlg, &_sha2FromTextDlg, &_runMacroDlg};
+		&_preference, &_pluginsAdminDlg, &_findCharsInRangeDlg, &_runMacroDlg};
 	
 	static size_t nbModelessDlg = sizeof(modelessDlgs) / sizeof(StaticDialog*);
 

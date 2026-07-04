@@ -43,7 +43,6 @@
 #include "pluginsAdmin.h"
 #include "localization.h"
 #include "documentSnapshot.h"
-#include "md5Dlgs.h"
 #include <vector>
 #include <iso646.h>
 #include <chrono>
@@ -327,14 +326,6 @@ private:
 	DebugInfoDlg _debugInfoDlg;
 	CmdLineArgsDlg _cmdLineArgsDlg;
 	RunDlg _runDlg;
-	HashFromFilesDlg _md5FromFilesDlg;
-	HashFromTextDlg _md5FromTextDlg;
-	HashFromFilesDlg _sha2FromFilesDlg;
-	HashFromTextDlg _sha2FromTextDlg;
-	HashFromFilesDlg _sha1FromFilesDlg;
-	HashFromTextDlg _sha1FromTextDlg;
-	HashFromFilesDlg _sha512FromFilesDlg;
-	HashFromTextDlg _sha512FromTextDlg;
     GoToLineDlg _goToLineDlg;
 	ColumnEditorDlg _colEditorDlg;
 	WordStyleDlg _configStyleDlg;

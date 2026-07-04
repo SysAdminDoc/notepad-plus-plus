@@ -463,11 +463,7 @@ void Notepad_plus::command(int id)
 			break;
 
 		case IDM_FILE_PRINTNOW :
-			filePrint(false);
-			break;
-
 		case IDM_FILE_PRINT :
-			filePrint(true);
 			break;
 
 		case IDM_FILE_EXIT:
@@ -1450,69 +1446,10 @@ void Notepad_plus::command(int id)
 		case IDM_MACRO_STARTRECORDINGMACRO:
 		case IDM_MACRO_STOPRECORDINGMACRO:
 		case IDC_EDIT_TOGGLEMACRORECORDING:
-		{
-			if (_recordingMacro)
-			{
-				// STOP !!!
-				_mainEditView.execute(SCI_STOPRECORD);
-				_subEditView.execute(SCI_STOPRECORD);
-
-				_mainEditView.execute(SCI_SETCURSOR, static_cast<WPARAM>(SC_CURSORNORMAL));
-				_subEditView.execute(SCI_SETCURSOR, static_cast<WPARAM>(SC_CURSORNORMAL));
-
-				_recordingMacro = false;
-				_runMacroDlg.initMacroList();
-			}
-			else
-			{
-				_mainEditView.execute(SCI_SETCURSOR, 9);
-				_subEditView.execute(SCI_SETCURSOR, 9);
-				_macro.clear();
-
-				// START !!!
-				_mainEditView.execute(SCI_STARTRECORD);
-				_subEditView.execute(SCI_STARTRECORD);
-				_recordingMacro = true;
-			}
-			_recordingSaved = false;
-			checkMacroState();
-			break;
-		}
-
 		case IDM_MACRO_PLAYBACKRECORDEDMACRO:
-			if (!_recordingMacro) // if we're not currently recording, then playback the recorded keystrokes
-			{
-				macroPlayback(_macro);
-			}
+		case IDM_MACRO_RUNMULTIMACRODLG:
+		case IDM_MACRO_SAVECURRENTMACRO:
 			break;
-
-		case IDM_MACRO_RUNMULTIMACRODLG :
-		{
-			if (!_recordingMacro) // if we're not currently recording, then playback the recorded keystrokes
-			{
-				bool isFirstTime = !_runMacroDlg.isCreated();
-				_runMacroDlg.doDialog(_nativeLangSpeaker.isRTL());
-
-				if (isFirstTime)
-				{
-					_nativeLangSpeaker.changeDlgLang(_runMacroDlg.getHSelf(), "MultiMacro");
-				}
-				break;
-
-			}
-		}
-		break;
-
-		case IDM_MACRO_SAVECURRENTMACRO :
-		{
-			if (addCurrentMacro())
-			{
-				_recordingSaved = true;
-				_runMacroDlg.initMacroList();
-				checkMacroState();
-			}
-			break;
-		}
 		case IDM_EDIT_FULLPATHTOCLIP :
 		case IDM_EDIT_CURRENTDIRTOCLIP :
 		case IDM_EDIT_FILENAMETOCLIP :
@@ -3636,159 +3573,17 @@ void Notepad_plus::command(int id)
 		}
 
 		case IDM_TOOL_MD5_GENERATE:
-		{
-			bool isFirstTime = !_md5FromTextDlg.isCreated();
-			_md5FromTextDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_md5FromTextDlg.getHSelf(), "MD5FromTextDlg");
-		}
-		break;
-
 		case IDM_TOOL_MD5_GENERATEFROMFILE:
-		{
-			bool isFirstTime = !_md5FromFilesDlg.isCreated();
-			_md5FromFilesDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_md5FromFilesDlg.getHSelf(), "MD5FromFilesDlg");
-		}
-		break;
-
-		case IDM_TOOL_MD5_GENERATEINTOCLIPBOARD:
-		{
-			if (_pEditView->execute(SCI_GETSELECTIONS) == 1)
-			{
-				size_t selectionStart = _pEditView->execute(SCI_GETSELECTIONSTART);
-				size_t selectionEnd = _pEditView->execute(SCI_GETSELECTIONEND);
-
-				intptr_t strLen = selectionEnd - selectionStart;
-				if (strLen)
-				{
-					intptr_t strSize = strLen + 1;
-					char *selectedStr = new char[strSize];
-					_pEditView->execute(SCI_GETSELTEXT, 0, reinterpret_cast<LPARAM>(selectedStr));
-
-					MD5 md5;
-					std::string md5ResultA = md5.digestString(selectedStr);
-					std::wstring md5ResultW(md5ResultA.begin(), md5ResultA.end());
-					str2Clipboard(md5ResultW, _pPublicInterface->getHSelf());
-					
-					delete [] selectedStr;
-				}
-			}
-		}
-		break;
-
 		case IDM_TOOL_SHA1_GENERATE:
-		{
-			bool isFirstTime = !_sha1FromTextDlg.isCreated();
-			_sha1FromTextDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_sha1FromTextDlg.getHSelf(), "SHA1FromTextDlg");
-		}
-		break;
-
 		case IDM_TOOL_SHA1_GENERATEFROMFILE:
-		{
-			bool isFirstTime = !_sha1FromFilesDlg.isCreated();
-			_sha1FromFilesDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_sha1FromFilesDlg.getHSelf(), "SHA1FromFilesDlg");
-		}
-		break;
-
-		case IDM_TOOL_SHA256_GENERATE:
-		{
-			bool isFirstTime = !_sha2FromTextDlg.isCreated();
-			_sha2FromTextDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_sha2FromTextDlg.getHSelf(), "SHA256FromTextDlg");
-		}
-		break;
-
-		case IDM_TOOL_SHA256_GENERATEFROMFILE:
-		{
-			bool isFirstTime = !_sha2FromFilesDlg.isCreated();
-			_sha2FromFilesDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_sha2FromFilesDlg.getHSelf(), "SHA256FromFilesDlg");
-		}
-		break;
-
-		case IDM_TOOL_SHA512_GENERATE:
-		{
-			bool isFirstTime = !_sha512FromTextDlg.isCreated();
-			_sha512FromTextDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_sha512FromTextDlg.getHSelf(), "SHA512FromTextDlg");
-		}
-		break;
-
-		case IDM_TOOL_SHA512_GENERATEFROMFILE:
-		{
-			bool isFirstTime = !_sha512FromFilesDlg.isCreated();
-			_sha512FromFilesDlg.doDialog(_nativeLangSpeaker.isRTL());
-			if (isFirstTime)
-				_nativeLangSpeaker.changeDlgLang(_sha512FromFilesDlg.getHSelf(), "SHA512FromFilesDlg");
-		}
-		break;
-
 		case IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD:
+		case IDM_TOOL_SHA256_GENERATE:
+		case IDM_TOOL_SHA256_GENERATEFROMFILE:
 		case IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD:
+		case IDM_TOOL_SHA512_GENERATE:
+		case IDM_TOOL_SHA512_GENERATEFROMFILE:
 		case IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD:
-		{
-			if (_pEditView->execute(SCI_GETSELECTIONS) == 1)
-			{
-				size_t selectionStart = _pEditView->execute(SCI_GETSELECTIONSTART);
-				size_t selectionEnd = _pEditView->execute(SCI_GETSELECTIONEND);
-
-				intptr_t strLen = selectionEnd - selectionStart;
-				if (strLen)
-				{
-					intptr_t strSize = strLen + 1;
-					char *selectedStr = new char[strSize];
-					_pEditView->execute(SCI_GETSELTEXT, 0, reinterpret_cast<LPARAM>(selectedStr));
-
-					uint8_t hash[HASH_MAX_LENGTH] {};
-					wchar_t hashStr[HASH_STR_MAX_LENGTH] {};
-					int hashLen = 0;
-
-					switch (id)
-					{
-						case IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD:
-						{
-							calc_sha1(hash, reinterpret_cast<const uint8_t*>(selectedStr), strlen(selectedStr));
-							hashLen = hash_sha1;
-						}
-						break;
-
-						case IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD:
-						{
-							calc_sha_256(hash, reinterpret_cast<const uint8_t*>(selectedStr), strlen(selectedStr));
-							hashLen = hash_sha256;
-						}
-						break;
-						
-						case IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD:
-						{
-							calc_sha_512(hash, reinterpret_cast<const uint8_t*>(selectedStr), strlen(selectedStr));
-							hashLen = hash_sha512;
-						}
-						break;
-
-						default:
-							delete[] selectedStr;
-							return;
-					}
-					for (int i = 0; i < hashLen; i++)
-						wsprintf(hashStr + i * 2, L"%02x", hash[i]);
-
-					str2Clipboard(hashStr, _pPublicInterface->getHSelf());
-
-					delete[] selectedStr;
-				}
-			}
-		}
-		break;
+			break;
 
 		case IDM_DEBUGINFO:
 		{
