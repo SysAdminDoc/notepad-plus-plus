@@ -978,7 +978,13 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 				iView = SUB_VIEW;
 			}
 			else
-				break;
+			{
+				int dynIdx = _groupContainer.getGroupIndexByHwnd(reinterpret_cast<HWND>(notification->nmhdr.hwndFrom));
+				if (dynIdx >= 0)
+					iView = _groupContainer.getGroup(dynIdx).id;
+				else
+					break;
+			}
 
 			// save map position before switch to a new document
 			_documentPeeker.saveCurrentSnapshot(*_pEditView);
