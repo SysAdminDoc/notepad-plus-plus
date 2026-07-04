@@ -1848,6 +1848,9 @@ void TabBarPlus::draggingCursor(POINT screenPoint)
 		else // drag out of application
 			::SetCursor(::LoadCursor(_hInst, MAKEINTRESOURCE(IDC_DRAG_OUT_TAB)));
 	}
+
+	_draggingPoint = screenPoint;
+	notify(TCN_TABDRAGGING, _nSrcTab);
 }
 
 void TabBarPlus::setActiveTab(int tabIndex)

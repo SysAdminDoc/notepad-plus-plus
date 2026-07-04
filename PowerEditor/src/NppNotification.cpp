@@ -763,6 +763,18 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 			break;
 		}
 
+		case TCN_TABDRAGGING:
+		{
+			TabBarPlus *dragSender = reinterpret_cast<TabBarPlus *>(notification->nmhdr.idFrom);
+			POINT dragPt = dragSender->getDraggingPoint();
+			DropZoneInfo dz = _groupContainer.hitTestDropZone(dragPt);
+			if (dz.position != DropPosition::None)
+				_groupContainer.showDropOverlay(dz);
+			else
+				_groupContainer.hideDropOverlay();
+			return TRUE;
+		}
+
 		case TCN_TABDROPPEDOUTSIDE:
 		case TCN_TABDROPPED:
 		{
