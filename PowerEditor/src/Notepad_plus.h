@@ -313,10 +313,13 @@ private:
 
 	ToolBar	_toolBar;
 
-    StatusBar _statusBar;
+	StatusBar _statusBar;
 	ReBar _rebarTop;
 	ReBar _rebarBottom;
 	HWND _hMenuOverflowButton = nullptr;
+	HWND _hMenuOverflowTooltip = nullptr;
+	bool _isMenuOverflowHot = false;
+	bool _isMenuOverflowPressed = false;
 
 	// Dialog
 	FindReplaceDlg _findReplaceDlg;
@@ -422,9 +425,11 @@ private:
 	BOOL notify(SCNotification *notification);
 	void command(int id);
 	void initMenuOverflowButton(HWND hwnd);
-	void updateMenuOverflowButton() const;
+	void updateMenuOverflowButton();
+	void paintMenuOverflowButton(HDC hdc, const RECT& rc, bool isPressed, bool isHot, bool isFocused) const;
 	bool drawMenuOverflowButton(const DRAWITEMSTRUCT* drawInfo) const;
 	void showMenuOverflow();
+	static LRESULT CALLBACK menuOverflowButtonSubclass(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR subclassId, DWORD_PTR refData);
 
 //Document management
 	UCHAR _mainWindowStatus = 0; //For 2 views and user dialog if docked

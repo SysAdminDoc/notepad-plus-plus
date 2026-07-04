@@ -16,6 +16,7 @@
 
 #include "Notepad_plus.h"
 
+#include <commctrl.h>
 #include <shlwapi.h>
 #include <wininet.h>
 
@@ -59,6 +60,7 @@ static constexpr COLORREF MOCHA_BASE = 0x002e1e1e;     // #1e1e2e
 static constexpr COLORREF MOCHA_SURFACE0 = 0x00443231; // #313244
 static constexpr COLORREF MOCHA_SURFACE1 = 0x00594b45; // #45475a
 static constexpr COLORREF MOCHA_TEXT = 0x00f4d6cd;     // #cdd6f4
+static constexpr COLORREF MOCHA_SUBTEXT0 = 0x00c8ada6; // #a6adc8
 static constexpr COLORREF MOCHA_BLUE = 0x00fab489;     // #89b4fa
 
 static bool isRootMenuChromeShortcut(const wchar_t* text)
@@ -919,6 +921,12 @@ LRESULT Notepad_plus::init(HWND hwnd)
 
 void Notepad_plus::killAllChildren()
 {
+	if (_hMenuOverflowTooltip)
+	{
+		::DestroyWindow(_hMenuOverflowTooltip);
+		_hMenuOverflowTooltip = nullptr;
+	}
+
 	if (_hMenuOverflowButton)
 	{
 		::DestroyWindow(_hMenuOverflowButton);
@@ -4649,8 +4657,8 @@ void Notepad_plus::initMenuOverflowButton(HWND hwnd)
 		return;
 
 	_hMenuOverflowButton = ::CreateWindowEx(
-		0, L"BUTTON", L"",
-		WS_CHILD | BS_OWNERDRAW | BS_NOTIFY,
+		0, L"STATIC", L"Main menu",
+		WS_CHILD | WS_TABSTOP | SS_NOTIFY,
 		0, 0, 1, 1,
 		hwnd,
 		reinterpret_cast<HMENU>(static_cast<UINT_PTR>(IDC_MENU_OVERFLOW_BUTTON)),
@@ -4658,10 +4666,36 @@ void Notepad_plus::initMenuOverflowButton(HWND hwnd)
 		nullptr);
 
 	if (_hMenuOverflowButton)
+	{
+		::SetWindowSubclass(_hMenuOverflowButton, menuOverflowButtonSubclass, static_cast<UINT_PTR>(SubclassID::first), reinterpret_cast<DWORD_PTR>(this));
+
+		_hMenuOverflowTooltip = ::CreateWindowEx(
+			WS_EX_TOPMOST,
+			TOOLTIPS_CLASS,
+			nullptr,
+			WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+			hwnd,
+			nullptr,
+			_pPublicInterface->getHinst(),
+			nullptr);
+
+		if (_hMenuOverflowTooltip)
+		{
+			TOOLINFO toolInfo{};
+			toolInfo.cbSize = sizeof(toolInfo);
+			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+			toolInfo.hwnd = hwnd;
+			toolInfo.uId = reinterpret_cast<UINT_PTR>(_hMenuOverflowButton);
+			toolInfo.lpszText = const_cast<LPWSTR>(L"Main menu");
+			::SendMessage(_hMenuOverflowTooltip, TTM_ADDTOOL, 0, reinterpret_cast<LPARAM>(&toolInfo));
+		}
+
 		updateMenuOverflowButton();
+	}
 }
 
-void Notepad_plus::updateMenuOverflowButton() const
+void Notepad_plus::updateMenuOverflowButton()
 {
 	if (!_hMenuOverflowButton || !::IsWindow(_hMenuOverflowButton))
 		return;
@@ -4670,6 +4704,8 @@ void Notepad_plus::updateMenuOverflowButton() const
 	const bool showButton = !nppGUI._menuBarShow;
 	if (!showButton)
 	{
+		_isMenuOverflowHot = false;
+		_isMenuOverflowPressed = false;
 		::ShowWindow(_hMenuOverflowButton, SW_HIDE);
 		return;
 	}
@@ -4683,7 +4719,63 @@ void Notepad_plus::updateMenuOverflowButton() const
 	const int left = std::max(margin, static_cast<int>(clientRect.right) - buttonSize - margin);
 
 	::SetWindowPos(_hMenuOverflowButton, HWND_TOP, left, top, buttonSize, buttonSize, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-	::InvalidateRect(_hMenuOverflowButton, nullptr, TRUE);
+	::RedrawWindow(_hMenuOverflowButton, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+}
+
+void Notepad_plus::paintMenuOverflowButton(HDC hdc, const RECT& itemRect, bool isPressed, bool isHot, bool isFocused) const
+{
+	const bool isDarkMode = NppDarkMode::isEnabled();
+	const COLORREF bgColor = isDarkMode ?
+		(isPressed ? MOCHA_SURFACE1 : (isHot || isFocused ? MOCHA_SURFACE0 : MOCHA_BASE)) :
+		::GetSysColor(isPressed ? COLOR_3DLIGHT : (isHot || isFocused ? COLOR_BTNHIGHLIGHT : COLOR_BTNFACE));
+	const COLORREF edgeColor = isDarkMode ?
+		(isFocused ? MOCHA_BLUE : (isHot ? MOCHA_SURFACE1 : MOCHA_SURFACE0)) :
+		::GetSysColor(isFocused ? COLOR_HIGHLIGHT : COLOR_3DSHADOW);
+	const COLORREF dotColor = isDarkMode ? (isHot || isFocused ? MOCHA_TEXT : MOCHA_SUBTEXT0) : ::GetSysColor(COLOR_BTNTEXT);
+
+	HBRUSH bgBrush = ::CreateSolidBrush(bgColor);
+	HPEN edgePen = ::CreatePen(PS_SOLID, 1, edgeColor);
+	RECT rc = itemRect;
+	::InflateRect(&rc, -1, -1);
+	HGDIOBJ oldPen = ::SelectObject(hdc, edgePen);
+	HGDIOBJ oldBrush = ::SelectObject(hdc, bgBrush);
+	::RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 8, 8);
+	::SelectObject(hdc, oldBrush);
+	::SelectObject(hdc, oldPen);
+	::DeleteObject(bgBrush);
+	::DeleteObject(edgePen);
+
+	if (isFocused)
+	{
+		RECT focusRect = rc;
+		::InflateRect(&focusRect, -2, -2);
+		HPEN focusPen = ::CreatePen(PS_SOLID, 1, isDarkMode ? MOCHA_BLUE : ::GetSysColor(COLOR_HIGHLIGHT));
+		HGDIOBJ oldFocusPen = ::SelectObject(hdc, focusPen);
+		HGDIOBJ oldFocusBrush = ::SelectObject(hdc, ::GetStockObject(NULL_BRUSH));
+		::RoundRect(hdc, focusRect.left, focusRect.top, focusRect.right, focusRect.bottom, 6, 6);
+		::SelectObject(hdc, oldFocusBrush);
+		::SelectObject(hdc, oldFocusPen);
+		::DeleteObject(focusPen);
+	}
+
+	const int centerX = (itemRect.left + itemRect.right) / 2;
+	const int centerY = (itemRect.top + itemRect.bottom) / 2;
+	const int controlWidth = itemRect.right - itemRect.left;
+	const int dotRadius = std::max(1, controlWidth / 12);
+	const int dotGap = std::max(5, controlWidth / 4);
+	HBRUSH dotBrush = ::CreateSolidBrush(dotColor);
+	HPEN dotPen = ::CreatePen(PS_SOLID, 1, dotColor);
+	oldPen = ::SelectObject(hdc, dotPen);
+	oldBrush = ::SelectObject(hdc, dotBrush);
+	for (int i = -1; i <= 1; ++i)
+	{
+		const int x = centerX + i * dotGap;
+		::Ellipse(hdc, x - dotRadius, centerY - dotRadius, x + dotRadius + 1, centerY + dotRadius + 1);
+	}
+	::SelectObject(hdc, oldBrush);
+	::SelectObject(hdc, oldPen);
+	::DeleteObject(dotBrush);
+	::DeleteObject(dotPen);
 }
 
 bool Notepad_plus::drawMenuOverflowButton(const DRAWITEMSTRUCT* drawInfo) const
@@ -4691,44 +4783,150 @@ bool Notepad_plus::drawMenuOverflowButton(const DRAWITEMSTRUCT* drawInfo) const
 	if (!drawInfo || drawInfo->hwndItem != _hMenuOverflowButton)
 		return false;
 
-	const bool isDarkMode = NppDarkMode::isEnabled();
 	const bool isPressed = (drawInfo->itemState & ODS_SELECTED) != 0;
 	const bool isFocused = (drawInfo->itemState & ODS_FOCUS) != 0;
-	const COLORREF bgColor = isDarkMode ? (isPressed ? MOCHA_SURFACE1 : MOCHA_SURFACE0) : ::GetSysColor(isPressed ? COLOR_3DLIGHT : COLOR_BTNFACE);
-	const COLORREF edgeColor = isDarkMode ? (isFocused ? MOCHA_BLUE : MOCHA_SURFACE1) : ::GetSysColor(COLOR_3DSHADOW);
-	const COLORREF dotColor = isDarkMode ? MOCHA_TEXT : ::GetSysColor(COLOR_BTNTEXT);
-
-	HBRUSH bgBrush = ::CreateSolidBrush(bgColor);
-	HPEN edgePen = ::CreatePen(PS_SOLID, 1, edgeColor);
-	RECT rc = drawInfo->rcItem;
-	::InflateRect(&rc, -1, -1);
-	HGDIOBJ oldPen = ::SelectObject(drawInfo->hDC, edgePen);
-	HGDIOBJ oldBrush = ::SelectObject(drawInfo->hDC, bgBrush);
-	::RoundRect(drawInfo->hDC, rc.left, rc.top, rc.right, rc.bottom, 8, 8);
-	::SelectObject(drawInfo->hDC, oldBrush);
-	::SelectObject(drawInfo->hDC, oldPen);
-	::DeleteObject(bgBrush);
-	::DeleteObject(edgePen);
-
-	const int centerX = (drawInfo->rcItem.left + drawInfo->rcItem.right) / 2;
-	const int centerY = (drawInfo->rcItem.top + drawInfo->rcItem.bottom) / 2;
-	const int dotRadius = 2;
-	const int dotGap = 6;
-	HBRUSH dotBrush = ::CreateSolidBrush(dotColor);
-	HPEN dotPen = ::CreatePen(PS_SOLID, 1, dotColor);
-	oldPen = ::SelectObject(drawInfo->hDC, dotPen);
-	oldBrush = ::SelectObject(drawInfo->hDC, dotBrush);
-	for (int i = -1; i <= 1; ++i)
-	{
-		const int x = centerX + i * dotGap;
-		::Ellipse(drawInfo->hDC, x - dotRadius, centerY - dotRadius, x + dotRadius + 1, centerY + dotRadius + 1);
-	}
-	::SelectObject(drawInfo->hDC, oldBrush);
-	::SelectObject(drawInfo->hDC, oldPen);
-	::DeleteObject(dotBrush);
-	::DeleteObject(dotPen);
+	const bool isHot = _isMenuOverflowHot || (drawInfo->itemState & ODS_HOTLIGHT) != 0;
+	paintMenuOverflowButton(drawInfo->hDC, drawInfo->rcItem, isPressed, isHot, isFocused);
 
 	return true;
+}
+
+LRESULT CALLBACK Notepad_plus::menuOverflowButtonSubclass(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR subclassId, DWORD_PTR refData)
+{
+	auto* self = reinterpret_cast<Notepad_plus*>(refData);
+	switch (message)
+	{
+		case WM_PAINT:
+		{
+			if (self)
+			{
+				PAINTSTRUCT paintStruct{};
+				HDC hdc = ::BeginPaint(hwnd, &paintStruct);
+				RECT rc{};
+				::GetClientRect(hwnd, &rc);
+				self->paintMenuOverflowButton(hdc, rc, self->_isMenuOverflowPressed, self->_isMenuOverflowHot, ::GetFocus() == hwnd);
+				::EndPaint(hwnd, &paintStruct);
+				return 0;
+			}
+			break;
+		}
+
+		case WM_GETDLGCODE:
+			return DLGC_BUTTON;
+
+		case WM_MOUSEMOVE:
+		{
+			if (self && !self->_isMenuOverflowHot)
+			{
+				self->_isMenuOverflowHot = true;
+				TRACKMOUSEEVENT trackMouseEvent{};
+				trackMouseEvent.cbSize = sizeof(trackMouseEvent);
+				trackMouseEvent.dwFlags = TME_LEAVE;
+				trackMouseEvent.hwndTrack = hwnd;
+				::TrackMouseEvent(&trackMouseEvent);
+				::InvalidateRect(hwnd, nullptr, FALSE);
+			}
+			break;
+		}
+
+		case WM_MOUSELEAVE:
+		{
+			if (self && self->_isMenuOverflowHot)
+			{
+				self->_isMenuOverflowHot = false;
+				::InvalidateRect(hwnd, nullptr, FALSE);
+			}
+			break;
+		}
+
+		case WM_LBUTTONDOWN:
+		{
+			if (self)
+			{
+				self->_isMenuOverflowPressed = true;
+				::SetFocus(hwnd);
+				::SetCapture(hwnd);
+				::RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+				return 0;
+			}
+			break;
+		}
+
+		case WM_LBUTTONUP:
+		{
+			if (self && self->_isMenuOverflowPressed)
+			{
+				self->_isMenuOverflowPressed = false;
+				if (::GetCapture() == hwnd)
+					::ReleaseCapture();
+
+				RECT rc{};
+				::GetClientRect(hwnd, &rc);
+				POINT pt{ static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)) };
+				const bool isInside = ::PtInRect(&rc, pt) != FALSE;
+				::RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+				if (isInside)
+					self->showMenuOverflow();
+				return 0;
+			}
+			break;
+		}
+
+		case WM_CAPTURECHANGED:
+		{
+			if (self && self->_isMenuOverflowPressed)
+			{
+				self->_isMenuOverflowPressed = false;
+				::RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+			}
+			break;
+		}
+
+		case WM_SETFOCUS:
+		case WM_KILLFOCUS:
+		case WM_ENABLE:
+			if (self && message == WM_KILLFOCUS)
+				self->_isMenuOverflowPressed = false;
+			::RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+			break;
+
+		case WM_KEYDOWN:
+		{
+			if (self && (wParam == VK_RETURN || wParam == VK_SPACE))
+			{
+				if (wParam == VK_SPACE)
+					self->_isMenuOverflowPressed = true;
+				::RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+				if (wParam == VK_RETURN)
+					self->showMenuOverflow();
+				return 0;
+			}
+			break;
+		}
+
+		case WM_KEYUP:
+		{
+			if (self && wParam == VK_SPACE)
+			{
+				const bool wasPressed = self->_isMenuOverflowPressed;
+				self->_isMenuOverflowPressed = false;
+				::RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+				if (wasPressed)
+					self->showMenuOverflow();
+				return 0;
+			}
+			break;
+		}
+
+		case WM_NCDESTROY:
+			::RemoveWindowSubclass(hwnd, menuOverflowButtonSubclass, subclassId);
+			break;
+
+		default:
+			break;
+	}
+
+	return ::DefSubclassProc(hwnd, message, wParam, lParam);
 }
 
 void Notepad_plus::showMenuOverflow()
