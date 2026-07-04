@@ -713,7 +713,7 @@ struct LargeFileRestriction final
 struct NppGUI final
 {
 	TbIconInfo _tbIconInfo{ toolBarStatusType::TB_STANDARD, FluentColor::defaultColor, 0, false };
-	bool _toolbarShow = true;
+	bool _toolbarShow = false;
 	bool _statusBarShow = true;
 	bool _menuBarShow = true;
 
