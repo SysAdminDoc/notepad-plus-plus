@@ -3842,15 +3842,15 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			{
 				if (pView == NULL)
 				{
-					if (_pEditView->getCurrentBuffer()->allowClickableLink())
+					if (_pEditView && _pEditView->getCurrentBuffer() && _pEditView->getCurrentBuffer()->allowClickableLink())
 						addHotSpot(_pEditView);
 
-					if (_pNonEditView->getCurrentBuffer()->allowClickableLink())
+					if (_pNonEditView && _pNonEditView->getCurrentBuffer() && _pNonEditView->getCurrentBuffer()->allowClickableLink())
 						addHotSpot(_pNonEditView);
 				}
 				else
 				{
-					if (pView->getCurrentBuffer()->allowClickableLink())
+					if (pView->getCurrentBuffer() && pView->getCurrentBuffer()->allowClickableLink())
 						addHotSpot(pView);
 				}
 			}

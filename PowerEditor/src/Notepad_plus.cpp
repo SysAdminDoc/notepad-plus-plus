@@ -9456,6 +9456,12 @@ int Notepad_plus::createNewEditorGroup()
 	int tabDpiDynamicalWidth = docTab->dpiManager().scale(nppGUI._tabStatus & TAB_PINBUTTON ? g_TabWidthButton : g_TabWidth);
 	TabCtrl_SetItemSize(docTab->getHSelf(), tabDpiDynamicalWidth, tabDpiDynamicalHeight);
 
+	BufferID initBuf = MainFileManager.newEmptyDocument();
+	MainFileManager.addBufferReference(initBuf, editView);
+	docTab->addBuffer(initBuf);
+	docTab->activateBuffer(initBuf);
+	editView->activateBuffer(initBuf, true);
+
 	auto* autoComp = new AutoCompletion(editView);
 
 	EditorGroup group;
@@ -9466,16 +9472,15 @@ int Notepad_plus::createNewEditorGroup()
 	group.isDynamic = true;
 	group.widthRatio = 1.0;
 
-	_groupContainer.addGroup(group);
-
 	docTab->display(true);
 	editView->display(true);
+
+	_groupContainer.addGroup(group);
 
 	TabBarPlus::triggerOwnerDrawTabbar(&(docTab->dpiManager()));
 
 	::SetWindowPos(docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
-	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 	return viewId;
 }
 
@@ -9492,26 +9497,25 @@ void Notepad_plus::removeEditorGroup(int groupIndex)
 		return;
 	}
 
-	// Close all buffers in this group
-	if (g.docTab)
+	int removedId = g.id;
+
+	if (_activeView == removedId)
 	{
-		while (g.docTab->nbItem() > 0)
+		for (int i = 0; i < _groupContainer.groupCount(); ++i)
 		{
-			BufferID bufId = g.docTab->getBufferByIndex(0);
-			g.docTab->closeBuffer(bufId);
-			MainFileManager.closeBuffer(bufId, g.editView);
+			auto& other = _groupContainer.getGroup(i);
+			if (other.id != removedId && other.isValid())
+			{
+				switchEditViewTo(other.id);
+				break;
+			}
 		}
 	}
 
-	_groupContainer.removeGroup(groupIndex);
+	if (g.docTab) g.docTab->display(false);
+	if (g.editView) g.editView->display(false);
 
-	if (_groupContainer.groupCount() > 0)
-	{
-		int newActive = _groupContainer.activeGroupIndex();
-		int viewId = getViewIdForGroup(newActive);
-		if (viewId >= 0)
-			switchEditViewTo(viewId);
-	}
+	_groupContainer.removeGroup(groupIndex);
 
 	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
 }

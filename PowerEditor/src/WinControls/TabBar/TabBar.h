@@ -35,7 +35,7 @@
 
 #define WM_TABSETSTYLE	(WM_APP + 0x024)
 
-inline constexpr int nbCtrlMax = 10;
+inline constexpr int nbCtrlMax = 32;
 
 struct TBHDR
 {

@@ -134,30 +134,7 @@ void EditorGroupContainer::removeGroup(int index)
 	if (index < 0 || index >= static_cast<int>(_groups.size()))
 		return;
 
-	auto& g = _groups[index];
-
-	g.docTab->display(false);
-	g.editView->display(false);
-
-	if (g.isDynamic)
-	{
-		if (g.autoComplete)
-		{
-			delete g.autoComplete;
-			g.autoComplete = nullptr;
-		}
-		if (g.docTab)
-		{
-			g.docTab->destroy();
-			delete g.docTab;
-		}
-		if (g.editView)
-		{
-			g.editView->destroy();
-			delete g.editView;
-		}
-	}
-
+	EditorGroup g = _groups[index];
 	_groups.erase(_groups.begin() + index);
 
 	if (_activeGroupIndex >= static_cast<int>(_groups.size()))
@@ -167,10 +144,24 @@ void EditorGroupContainer::removeGroup(int index)
 
 	normalizeRatios();
 
-	if (::IsWindow(_hSelf) && _lastRect.right > 0)
+	if (g.docTab) g.docTab->display(false);
+	if (g.editView) g.editView->display(false);
+
+	if (::IsWindow(_hSelf) && !_groups.empty())
 	{
 		recalcLayout();
 		applyLayout();
+	}
+
+	if (g.isDynamic)
+	{
+		AutoCompletion* ac = g.autoComplete;
+		DocTabView* dt = g.docTab;
+		ScintillaEditView* ev = g.editView;
+
+		if (ac) delete ac;
+		if (dt) { dt->destroy(); delete dt; }
+		if (ev) { ev->destroy(); delete ev; }
 	}
 }
 

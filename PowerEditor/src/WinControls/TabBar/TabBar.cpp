@@ -34,7 +34,7 @@ COLORREF TabBarPlus::_activeTopBarUnfocusedColour = RGB(250, 210, 150);
 COLORREF TabBarPlus::_inactiveTextColour = grey;
 COLORREF TabBarPlus::_inactiveBgColour = RGB(192, 192, 192);
 
-HWND TabBarPlus::_tabbrPlusInstanceHwndArray[nbCtrlMax] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+HWND TabBarPlus::_tabbrPlusInstanceHwndArray[nbCtrlMax] = {};
 int TabBarPlus::_nbCtrl = 0;
 
 void TabBar::init(HINSTANCE hInst, HWND parent, bool isVertical, bool isMultiLine)
@@ -239,6 +239,16 @@ void TabBar::reSizeTo(RECT & rc2Adjust)
 
 void TabBarPlus::destroy()
 {
+	for (int i = 0; i < nbCtrlMax; ++i)
+	{
+		if (_tabbrPlusInstanceHwndArray[i] == _hSelf)
+		{
+			_tabbrPlusInstanceHwndArray[i] = NULL;
+			--_nbCtrl;
+			break;
+		}
+	}
+
 	TabBar::destroy();
 	::DestroyWindow(_tooltips);
 	_tooltips = NULL;
