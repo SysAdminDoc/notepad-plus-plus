@@ -74,6 +74,8 @@ private:
 
 	bool _isDraggingSplitter = false;
 	int _dragSplitterIndex = -1;
+	int _hoverSplitterIndex = -1;
+	bool _isTrackingMouseLeave = false;
 	POINT _dragStartPoint = {};
 	double _dragStartRatioLeft = 0.0;
 	double _dragStartRatioRight = 0.0;
@@ -92,6 +94,7 @@ private:
 	void recalcLayout();
 	void applyLayout() const;
 	int splitterHitTest(POINT clientPt) const;
+	void invalidateSplitter(int index) const;
 	void createDropOverlay();
 	void normalizeRatios();
 	void updateScrollBar();

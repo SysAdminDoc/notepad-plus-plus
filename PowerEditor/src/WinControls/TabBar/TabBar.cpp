@@ -28,6 +28,11 @@
 #define	IDC_DRAG_PLUS_TAB 1406
 #define	IDC_DRAG_OUT_TAB 1407
 
+static constexpr COLORREF mochaMantle = 0x00251818;   // #181825
+static constexpr COLORREF mochaSurface0 = 0x00443231; // #313244
+static constexpr COLORREF mochaSurface1 = 0x00594b45; // #45475a
+static constexpr COLORREF mochaBlue = 0x00fab489;     // #89b4fa
+
 COLORREF TabBarPlus::_activeTextColour = ::GetSysColor(COLOR_BTNTEXT);
 COLORREF TabBarPlus::_activeTopBarFocusedColour = RGB(250, 170, 60);
 COLORREF TabBarPlus::_activeTopBarUnfocusedColour = RGB(250, 210, 150);
@@ -1534,9 +1539,36 @@ void TabBarPlus::drawItem(DRAWITEMSTRUCT* pDrawItemStruct, bool isDarkMode)
 	NppParameters& nppParam = NppParameters::getInstance();
 	if (isSelected)
 	{
-		hBrush = ::CreateSolidBrush(colorActiveBg);
-		::FillRect(hDC, &pDrawItemStruct->rcItem, hBrush);
-		::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+		if (isDarkMode && !isVertical)
+		{
+			RECT activeRect = pDrawItemStruct->rcItem;
+			activeRect.left += _dpiManager.scale(1);
+			activeRect.right -= _dpiManager.scale(1);
+			activeRect.top += _dpiManager.scale(1);
+			activeRect.bottom += _dpiManager.scale(1);
+
+			HPEN tabPen = ::CreatePen(PS_SOLID, 1, mochaSurface0);
+			HBRUSH tabBrush = ::CreateSolidBrush(mochaSurface0);
+			NppDarkMode::paintRoundRect(hDC, activeRect, tabPen, tabBrush, _dpiManager.scale(8), _dpiManager.scale(8));
+			::DeleteObject(tabBrush);
+			::DeleteObject(tabPen);
+
+			RECT underlineRect = {
+				activeRect.left + _dpiManager.scale(8),
+				activeRect.bottom - _dpiManager.scale(3),
+				activeRect.right - _dpiManager.scale(8),
+				activeRect.bottom - _dpiManager.scale(1)
+			};
+			hBrush = ::CreateSolidBrush(mochaBlue);
+			::FillRect(hDC, &underlineRect, hBrush);
+			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+		}
+		else
+		{
+			hBrush = ::CreateSolidBrush(colorActiveBg);
+			::FillRect(hDC, &pDrawItemStruct->rcItem, hBrush);
+			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+		}
 
 		if (drawTopBar)
 		{
@@ -1560,10 +1592,25 @@ void TabBarPlus::drawItem(DRAWITEMSTRUCT* pDrawItemStruct, bool isDarkMode)
 				topBarColour = nppParam.getIndividualTabColor(individualColourId, isDarkMode, isFocused);
 			}
 
-			hBrush = ::CreateSolidBrush(topBarColour);
+			if (isDarkMode && !isVertical)
+			{
+				RECT underlineRect = {
+					pDrawItemStruct->rcItem.left + _dpiManager.scale(8),
+					pDrawItemStruct->rcItem.bottom - _dpiManager.scale(3),
+					pDrawItemStruct->rcItem.right - _dpiManager.scale(8),
+					pDrawItemStruct->rcItem.bottom - _dpiManager.scale(1)
+				};
+				hBrush = ::CreateSolidBrush(individualColourId != -1 ? topBarColour : mochaBlue);
+				::FillRect(hDC, &underlineRect, hBrush);
+				::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+			}
+			else
+			{
+				hBrush = ::CreateSolidBrush(topBarColour);
 
-			::FillRect(hDC, &barRect, hBrush);
-			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+				::FillRect(hDC, &barRect, hBrush);
+				::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+			}
 		}
 	}
 	else // inactive tabs
@@ -1589,10 +1636,38 @@ void TabBarPlus::drawItem(DRAWITEMSTRUCT* pDrawItemStruct, bool isDarkMode)
 			HLSColour hls(brushColour);
 			brushColour = hls.toRGB4DarkModeWithTuning(15, 0); // make it lighter slightly
 		}
-		
-		hBrush = ::CreateSolidBrush(brushColour);
-		::FillRect(hDC, &inactiveRect, hBrush);
-		::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+
+		if (isDarkMode && !isVertical)
+		{
+			RECT modernInactiveRect = inactiveRect;
+			modernInactiveRect.left += _dpiManager.scale(1);
+			modernInactiveRect.right -= _dpiManager.scale(1);
+			modernInactiveRect.top += _dpiManager.scale(2);
+			modernInactiveRect.bottom -= _dpiManager.scale(1);
+
+			if (_currentHoverTabItem == nTab && !_isDragging)
+			{
+				HPEN tabPen = ::CreatePen(PS_SOLID, 1, mochaSurface1);
+				HBRUSH tabBrush = ::CreateSolidBrush(mochaSurface0);
+				NppDarkMode::paintRoundRect(hDC, modernInactiveRect, tabPen, tabBrush, _dpiManager.scale(8), _dpiManager.scale(8));
+				::DeleteObject(tabBrush);
+				::DeleteObject(tabPen);
+			}
+			else if (drawInactiveTab || individualColourId != -1)
+			{
+				HPEN tabPen = ::CreatePen(PS_SOLID, 1, mochaMantle);
+				hBrush = ::CreateSolidBrush(brushColour);
+				NppDarkMode::paintRoundRect(hDC, modernInactiveRect, tabPen, hBrush, _dpiManager.scale(6), _dpiManager.scale(6));
+				::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+				::DeleteObject(tabPen);
+			}
+		}
+		else
+		{
+			hBrush = ::CreateSolidBrush(brushColour);
+			::FillRect(hDC, &inactiveRect, hBrush);
+			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+		}
 	}
 
 	if (isDarkMode && hasMultipleLines)

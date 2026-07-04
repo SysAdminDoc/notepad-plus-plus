@@ -34,8 +34,59 @@ static constexpr int DROP_OVERLAY_ALPHA = 80;
 static constexpr COLORREF DROP_OVERLAY_COLOR = RGB(60, 120, 200);
 static constexpr double DROP_EDGE_FRACTION = 0.30;
 static constexpr double MIN_GROUP_RATIO = 0.05;
+static constexpr int SPLITTER_RAIL_WIDTH = 2;
+static constexpr int SPLITTER_HOVER_RAIL_WIDTH = 4;
+static constexpr COLORREF MOCHA_SURFACE0 = 0x00443231; // #313244
+static constexpr COLORREF MOCHA_SUBTEXT0 = 0x00c8ada6; // #a6adc8
+static constexpr COLORREF MOCHA_BLUE = 0x00fab489;     // #89b4fa
 
 bool EditorGroupContainer::_isRegistered = false;
+
+static RECT splitterDrawRect(const RECT& splitterRect, int scrollOffset)
+{
+	return {
+		splitterRect.left - scrollOffset,
+		splitterRect.top,
+		splitterRect.left - scrollOffset + splitterRect.right,
+		splitterRect.top + splitterRect.bottom
+	};
+}
+
+static void paintSplitter(HDC hdc, RECT drawRect, bool isHot)
+{
+	const bool isDarkMode = NppDarkMode::isEnabled();
+	const COLORREF baseColor = isDarkMode ? NppDarkMode::getBackgroundColor() : ::GetSysColor(COLOR_3DFACE);
+	const COLORREF railColor = isDarkMode ? (isHot ? MOCHA_SURFACE0 : NppDarkMode::getCtrlBackgroundColor()) : ::GetSysColor(isHot ? COLOR_3DSHADOW : COLOR_3DFACE);
+
+	HBRUSH baseBrush = ::CreateSolidBrush(baseColor);
+	::FillRect(hdc, &drawRect, baseBrush);
+	::DeleteObject(baseBrush);
+
+	const int railWidth = isHot ? SPLITTER_HOVER_RAIL_WIDTH : SPLITTER_RAIL_WIDTH;
+	const int centerX = drawRect.left + (drawRect.right - drawRect.left) / 2;
+	RECT railRect = { centerX - railWidth / 2, drawRect.top, centerX - railWidth / 2 + railWidth, drawRect.bottom };
+
+	HBRUSH railBrush = ::CreateSolidBrush(railColor);
+	::FillRect(hdc, &railRect, railBrush);
+	::DeleteObject(railBrush);
+
+	if (isDarkMode && isHot)
+	{
+		RECT accentRect = { centerX, drawRect.top, centerX + 1, drawRect.bottom };
+		HBRUSH accentBrush = ::CreateSolidBrush(MOCHA_BLUE);
+		::FillRect(hdc, &accentRect, accentBrush);
+		::DeleteObject(accentBrush);
+
+		const int centerY = drawRect.top + (drawRect.bottom - drawRect.top) / 2;
+		HBRUSH gripBrush = ::CreateSolidBrush(MOCHA_SUBTEXT0);
+		for (int i = -1; i <= 1; ++i)
+		{
+			RECT gripDot = { centerX - 1, centerY + i * 6 - 1, centerX + 1, centerY + i * 6 + 1 };
+			::FillRect(hdc, &gripDot, gripBrush);
+		}
+		::DeleteObject(gripBrush);
+	}
+}
 
 void EditorGroupContainer::create(HINSTANCE hInst, HWND parent)
 {
@@ -362,6 +413,8 @@ void EditorGroupContainer::recalcLayout()
 	int n = static_cast<int>(_groups.size());
 	_groupRects.resize(n);
 	_splitterRects.resize(std::max(0, n - 1));
+	if (_hoverSplitterIndex >= static_cast<int>(_splitterRects.size()))
+		_hoverSplitterIndex = -1;
 
 	if (n == 0 || viewWidth <= 0 || totalHeight <= 0)
 		return;
@@ -476,6 +529,16 @@ int EditorGroupContainer::splitterHitTest(POINT clientPt) const
 	return -1;
 }
 
+void EditorGroupContainer::invalidateSplitter(int index) const
+{
+	if (index < 0 || index >= static_cast<int>(_splitterRects.size()) || !::IsWindow(_hSelf))
+		return;
+
+	RECT drawRect = splitterDrawRect(_splitterRects[index], _scrollOffset);
+	::InflateRect(&drawRect, 4, 0);
+	::InvalidateRect(_hSelf, &drawRect, FALSE);
+}
+
 
 LRESULT CALLBACK EditorGroupContainer::staticWinProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -508,13 +571,10 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 		case WM_ERASEBKGND:
 		{
 			HDC hdc = reinterpret_cast<HDC>(wParam);
-			COLORREF splitterColor = NppDarkMode::isEnabled() ? NppDarkMode::getBackgroundColor() : ::GetSysColor(COLOR_3DFACE);
-			for (const auto& sr : _splitterRects)
+			for (int i = 0; i < static_cast<int>(_splitterRects.size()); ++i)
 			{
-				RECT drawRect = { sr.left - _scrollOffset, sr.top, sr.left - _scrollOffset + sr.right, sr.top + sr.bottom };
-				HBRUSH brush = ::CreateSolidBrush(splitterColor);
-				::FillRect(hdc, &drawRect, brush);
-				::DeleteObject(brush);
+				const bool isHot = i == _hoverSplitterIndex || (_isDraggingSplitter && i == _dragSplitterIndex);
+				paintSplitter(hdc, splitterDrawRect(_splitterRects[i], _scrollOffset), isHot);
 			}
 			return 1;
 		}
@@ -523,13 +583,10 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 		{
 			PAINTSTRUCT ps;
 			HDC hdc = ::BeginPaint(_hSelf, &ps);
-			COLORREF splitterColor = NppDarkMode::isEnabled() ? NppDarkMode::getBackgroundColor() : ::GetSysColor(COLOR_3DFACE);
-			for (const auto& sr : _splitterRects)
+			for (int i = 0; i < static_cast<int>(_splitterRects.size()); ++i)
 			{
-				RECT drawRect = { sr.left - _scrollOffset, sr.top, sr.left - _scrollOffset + sr.right, sr.top + sr.bottom };
-				HBRUSH brush = ::CreateSolidBrush(splitterColor);
-				::FillRect(hdc, &drawRect, brush);
-				::DeleteObject(brush);
+				const bool isHot = i == _hoverSplitterIndex || (_isDraggingSplitter && i == _dragSplitterIndex);
+				paintSplitter(hdc, splitterDrawRect(_splitterRects[i], _scrollOffset), isHot);
 			}
 			::EndPaint(_hSelf, &ps);
 			return 0;
@@ -565,6 +622,13 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 			{
 				_isDraggingSplitter = true;
 				_dragSplitterIndex = idx;
+				if (_hoverSplitterIndex != idx)
+				{
+					const int oldHover = _hoverSplitterIndex;
+					_hoverSplitterIndex = idx;
+					invalidateSplitter(oldHover);
+					invalidateSplitter(_hoverSplitterIndex);
+				}
 				_dragStartPoint = pt;
 				_dragStartRatioLeft = _groups[idx].widthRatio;
 				_dragStartRatioRight = _groups[idx + 1].widthRatio;
@@ -576,10 +640,29 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 
 		case WM_MOUSEMOVE:
 		{
+			POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+			int hoverIndex = splitterHitTest(pt);
+
+			if (hoverIndex >= 0 && !_isTrackingMouseLeave)
+			{
+				TRACKMOUSEEVENT tme{};
+				tme.cbSize = sizeof(tme);
+				tme.dwFlags = TME_LEAVE;
+				tme.hwndTrack = _hSelf;
+				_isTrackingMouseLeave = ::TrackMouseEvent(&tme) != FALSE;
+			}
+
+			if (hoverIndex != _hoverSplitterIndex)
+			{
+				const int oldHover = _hoverSplitterIndex;
+				_hoverSplitterIndex = hoverIndex;
+				invalidateSplitter(oldHover);
+				invalidateSplitter(_hoverSplitterIndex);
+			}
+
 			if (_isDraggingSplitter && _dragSplitterIndex >= 0 &&
 				_dragSplitterIndex + 1 < static_cast<int>(_groups.size()))
 			{
-				POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 				int deltaX = pt.x - _dragStartPoint.x;
 
 				RECT clientRect{};
@@ -606,13 +689,27 @@ LRESULT EditorGroupContainer::runProc(UINT message, WPARAM wParam, LPARAM lParam
 			break;
 		}
 
+		case WM_MOUSELEAVE:
+		{
+			_isTrackingMouseLeave = false;
+			if (_hoverSplitterIndex != -1)
+			{
+				const int oldHover = _hoverSplitterIndex;
+				_hoverSplitterIndex = -1;
+				invalidateSplitter(oldHover);
+			}
+			return 0;
+		}
+
 		case WM_LBUTTONUP:
 		{
 			if (_isDraggingSplitter)
 			{
+				const int oldDrag = _dragSplitterIndex;
 				_isDraggingSplitter = false;
 				_dragSplitterIndex = -1;
 				::ReleaseCapture();
+				invalidateSplitter(oldDrag);
 				return 0;
 			}
 			break;
