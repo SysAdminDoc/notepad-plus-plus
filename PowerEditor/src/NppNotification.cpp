@@ -896,15 +896,20 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 			Buffer * buf = MainFileManager.getBufferByID(bufferToClose);
 			int iView = notifyViewId >= 0 ? notifyViewId : (isFromPrimary ? MAIN_VIEW : SUB_VIEW);
 
-			// If this is the last tab in a dynamic group, remove the group instead
-			if (notifyViewId >= 2 && notifyDocTab->nbItem() <= 1)
+			if (notifyViewId >= 2)
 			{
-				int groupIdx = _groupContainer.getGroupIndexById(notifyViewId);
-				if (groupIdx >= 0)
+				if (notifyDocTab->nbItem() <= 1)
 				{
-					removeEditorGroup(groupIdx);
-					return TRUE;
+					int groupIdx = _groupContainer.getGroupIndexById(notifyViewId);
+					if (groupIdx >= 0)
+						removeEditorGroup(groupIdx);
 				}
+				else
+				{
+					::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
+						reinterpret_cast<WPARAM>(bufferToClose), static_cast<LPARAM>(notifyViewId));
+				}
+				return TRUE;
 			}
 
 			if (buf->isDirty())
