@@ -70,6 +70,16 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 	if (notifyView && !notifyView->getCurrentBuffer())
 		return FALSE;
 
+	if (notifyViewId >= 2 && notifyViewId != currentView())
+	{
+		bool isClickEvent = (notification->nmhdr.code == SCN_UPDATEUI ||
+			notification->nmhdr.code == SCN_MARGINCLICK ||
+			notification->nmhdr.code == SCN_DOUBLECLICK ||
+			notification->nmhdr.code == SCN_FOCUSIN);
+		if (isClickEvent)
+			switchEditViewTo(notifyViewId);
+	}
+
 	TBHDR * tabNotification = (TBHDR*) notification;
 	switch (notification->nmhdr.code)
 	{

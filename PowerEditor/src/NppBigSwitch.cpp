@@ -3417,6 +3417,12 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			{
 				switchEditViewTo(SUB_VIEW);
 			}
+			else
+			{
+				int dynIdx = _groupContainer.getGroupIndexByHwnd(handle);
+				if (dynIdx >= 0)
+					switchEditViewTo(_groupContainer.getGroup(dynIdx).id);
+			}
 			return TRUE;
 		}
 
