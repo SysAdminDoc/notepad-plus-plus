@@ -9563,40 +9563,25 @@ void Notepad_plus::handleTabDropOnGroup(int destGroupIndex, DropPosition pos)
 {
 	if (pos == DropPosition::None)
 		return;
+	if (!_pEditView || !_pDocTab)
+		return;
 
 	BufferID curBuf = _pEditView->getCurrentBufferID();
+	if (curBuf == BUFFER_INVALID)
+		return;
+
 	int srcView = currentView();
 
 	if (pos == DropPosition::Center)
 	{
-		moveBufferToGroup(curBuf, srcView, destGroupIndex);
+		moveBufferToGroup(curBuf, srcView, destGroupIndex, true);
 	}
-	else if (pos == DropPosition::Right)
+	else if (pos == DropPosition::Right || pos == DropPosition::Left)
 	{
 		int newViewId = createNewEditorGroup();
 		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
 		if (newGroupIdx >= 0)
-		{
-			// Reorder: move the new group to right after destGroupIndex
-			// For now, it's appended at the end which is fine for right-split
-			moveBufferToGroup(curBuf, srcView, newGroupIdx);
-		}
-	}
-	else if (pos == DropPosition::Left)
-	{
-		int newViewId = createNewEditorGroup();
-		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
-		if (newGroupIdx >= 0)
-			moveBufferToGroup(curBuf, srcView, newGroupIdx);
-	}
-
-	// Auto-remove empty source groups
-	int srcGroupIdx = _groupContainer.getGroupIndexById(srcView);
-	if (srcGroupIdx >= 0)
-	{
-		auto& srcGroup = _groupContainer.getGroup(srcGroupIdx);
-		if (srcGroup.isDynamic && srcGroup.docTab && srcGroup.docTab->nbItem() == 0)
-			removeEditorGroup(srcGroupIdx);
+			moveBufferToGroup(curBuf, srcView, newGroupIdx, true);
 	}
 }
 

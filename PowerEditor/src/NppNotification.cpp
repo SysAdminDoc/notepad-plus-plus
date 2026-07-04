@@ -776,10 +776,9 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 
 				if (targetGroupIdx >= 0 && targetGroupIdx != srcGroupIdx)
 				{
-					// Dropped on a different group — move (or clone) buffer there
 					BufferID curBuf = _pEditView->getCurrentBufferID();
 					int srcView = currentView();
-					moveBufferToGroup(curBuf, srcView, targetGroupIdx, isInCtrlStat);
+					moveBufferToGroup(curBuf, srcView, targetGroupIdx, true);
 				}
 				else if (hWin == _pEditView->getHSelf())
 				{
