@@ -9456,12 +9456,6 @@ int Notepad_plus::createNewEditorGroup()
 	int tabDpiDynamicalWidth = docTab->dpiManager().scale(nppGUI._tabStatus & TAB_PINBUTTON ? g_TabWidthButton : g_TabWidth);
 	TabCtrl_SetItemSize(docTab->getHSelf(), tabDpiDynamicalWidth, tabDpiDynamicalHeight);
 
-	BufferID initBuf = MainFileManager.newEmptyDocument();
-	MainFileManager.addBufferReference(initBuf, editView);
-	docTab->addBuffer(initBuf);
-	docTab->activateBuffer(initBuf);
-	editView->activateBuffer(initBuf, true);
-
 	auto* autoComp = new AutoCompletion(editView);
 
 	EditorGroup group;
@@ -9472,10 +9466,7 @@ int Notepad_plus::createNewEditorGroup()
 	group.isDynamic = true;
 	group.widthRatio = 1.0;
 
-	docTab->display(true);
-	editView->display(true);
-
-	_groupContainer.addGroup(group);
+	_groupContainer.addGroup(group, true);
 
 	TabBarPlus::triggerOwnerDrawTabbar(&(docTab->dpiManager()));
 
@@ -9509,6 +9500,17 @@ void Notepad_plus::removeEditorGroup(int groupIndex)
 				switchEditViewTo(other.id);
 				break;
 			}
+		}
+	}
+
+	if (g.docTab && g.editView)
+	{
+		for (size_t i = 0; i < g.docTab->nbItem(); ++i)
+		{
+			BufferID bufId = g.docTab->getBufferByIndex(i);
+			Buffer* buf = MainFileManager.getBufferByID(bufId);
+			if (buf)
+				buf->removeReference(g.editView);
 		}
 	}
 
@@ -9578,22 +9580,27 @@ void Notepad_plus::handleTabDropOnGroup(int destGroupIndex, DropPosition pos)
 	{
 		moveBufferToGroup(curBuf, srcView, destGroupIndex, true);
 		targetGroupIdx = destGroupIndex;
+		::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
+			reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
 	}
 	else if (pos == DropPosition::Right || pos == DropPosition::Left)
 	{
 		int newViewId = createNewEditorGroup();
-		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
-		if (newGroupIdx >= 0)
+		targetGroupIdx = _groupContainer.getGroupIndexById(newViewId);
+		if (targetGroupIdx >= 0)
 		{
-			moveBufferToGroup(curBuf, srcView, newGroupIdx, true);
-			targetGroupIdx = newGroupIdx;
+			auto& g = _groupContainer.getGroup(targetGroupIdx);
+			MainFileManager.addBufferReference(curBuf, g.editView);
+			g.docTab->addBuffer(curBuf);
+			g.docTab->activateBuffer(curBuf);
+			g.editView->activateBuffer(curBuf, true);
+			g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
+			g.docTab->display(true);
+			g.editView->display(true);
+			switchEditViewTo(newViewId);
+			::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
+				reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
 		}
-	}
-
-	if (targetGroupIdx >= 0)
-	{
-		::PostMessage(_pPublicInterface->getHSelf(), WM_EDITORGROUP_DEFERRED_REMOVE,
-			reinterpret_cast<WPARAM>(curBuf), static_cast<LPARAM>(srcView));
 	}
 }
 
@@ -9614,7 +9621,16 @@ void Notepad_plus::splitAllTabsToGroups()
 		int newViewId = createNewEditorGroup();
 		int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
 		if (newGroupIdx >= 0)
-			moveBufferToGroup(buffers[i], MAIN_VIEW, newGroupIdx, true);
+		{
+			auto& g = _groupContainer.getGroup(newGroupIdx);
+			MainFileManager.addBufferReference(buffers[i], g.editView);
+			g.docTab->addBuffer(buffers[i]);
+			g.docTab->activateBuffer(buffers[i]);
+			g.editView->activateBuffer(buffers[i], true);
+			g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
+			g.docTab->display(true);
+			g.editView->display(true);
+		}
 	}
 
 	::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);

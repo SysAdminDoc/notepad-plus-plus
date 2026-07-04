@@ -24,6 +24,7 @@
 
 #define WM_EDITORGROUP_SPLITTER_MOVED (WM_APP + 0x100)
 #define WM_EDITORGROUP_DEFERRED_REMOVE (WM_APP + 0x101)
+#define WM_EDITORGROUP_REMOVE_PLACEHOLDER (WM_APP + 0x102)
 
 class EditorGroupContainer : public Window
 {
@@ -37,7 +38,7 @@ public:
 	void display(bool toShow = true) const override;
 	void redraw(bool forceUpdate = false) const override;
 
-	int addGroup(const EditorGroup& group);
+	int addGroup(const EditorGroup& group, bool skipLayout = false);
 	void removeGroup(int index);
 	int groupCount() const { return static_cast<int>(_groups.size()); }
 

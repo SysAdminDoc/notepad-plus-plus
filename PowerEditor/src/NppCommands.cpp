@@ -3556,12 +3556,22 @@ void Notepad_plus::command(int id)
         {
             if (!_pEditView) break;
             BufferID curBuf = _pEditView->getCurrentBufferID();
-            int srcView = currentView();
             int newViewId = createNewEditorGroup();
             int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
             if (newGroupIdx >= 0)
             {
-                moveBufferToGroup(curBuf, srcView, newGroupIdx, false);
+                auto& g = _groupContainer.getGroup(newGroupIdx);
+                MainFileManager.addBufferReference(curBuf, g.editView);
+                g.docTab->addBuffer(curBuf);
+                g.docTab->activateBuffer(curBuf);
+                g.editView->activateBuffer(curBuf, true);
+                g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
+                g.editView->performGlobalStyles();
+                g.docTab->display(true);
+                g.editView->display(true);
+                TabBarPlus::triggerOwnerDrawTabbar(&(g.docTab->dpiManager()));
+                ::SetWindowPos(g.docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                switchEditViewTo(newViewId);
                 _groupContainer.setActiveGroup(newGroupIdx);
             }
             ::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
@@ -3570,12 +3580,24 @@ void Notepad_plus::command(int id)
 
         case IDM_VIEW_CLONE_TO_NEW_GROUP:
         {
+            if (!_pEditView) break;
             BufferID curBuf = _pEditView->getCurrentBufferID();
-            int srcView = currentView();
             int newViewId = createNewEditorGroup();
             int newGroupIdx = _groupContainer.getGroupIndexById(newViewId);
             if (newGroupIdx >= 0)
-                moveBufferToGroup(curBuf, srcView, newGroupIdx, true);
+            {
+                auto& g = _groupContainer.getGroup(newGroupIdx);
+                MainFileManager.addBufferReference(curBuf, g.editView);
+                g.docTab->addBuffer(curBuf);
+                g.docTab->activateBuffer(curBuf);
+                g.editView->activateBuffer(curBuf, true);
+                g.editView->defineDocType(g.editView->getCurrentBuffer()->getLangType());
+                g.editView->performGlobalStyles();
+                g.docTab->display(true);
+                g.editView->display(true);
+                TabBarPlus::triggerOwnerDrawTabbar(&(g.docTab->dpiManager()));
+                ::SetWindowPos(g.docTab->getHSelf(), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
             ::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
             break;
         }

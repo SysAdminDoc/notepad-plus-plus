@@ -113,14 +113,14 @@ void EditorGroupContainer::redraw(bool forceUpdate) const
 }
 
 
-int EditorGroupContainer::addGroup(const EditorGroup& group)
+int EditorGroupContainer::addGroup(const EditorGroup& group, bool skipLayout)
 {
 	_groups.push_back(group);
 	int idx = static_cast<int>(_groups.size()) - 1;
 
 	normalizeRatios();
 
-	if (::IsWindow(_hSelf) && _lastRect.right > 0)
+	if (!skipLayout && ::IsWindow(_hSelf) && _lastRect.right > 0)
 	{
 		recalcLayout();
 		applyLayout();

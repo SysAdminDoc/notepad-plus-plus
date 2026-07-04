@@ -700,6 +700,36 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			break;
 		}
 
+		case WM_EDITORGROUP_REMOVE_PLACEHOLDER:
+		{
+			int viewId = static_cast<int>(wParam);
+			DocTabView* tab = getDocTabByView(viewId);
+			ScintillaEditView* ev = getEditViewByView(viewId);
+			if (tab && ev && tab->nbItem() > 1)
+			{
+				for (size_t i = 0; i < tab->nbItem(); ++i)
+				{
+					BufferID bid = tab->getBufferByIndex(i);
+					Buffer* b = MainFileManager.getBufferByID(bid);
+					if (b && b->isUntitled() && !b->isDirty() && b->docLength() == 0)
+					{
+						int active = tab->getCurrentTabIndex();
+						if (static_cast<int>(i) == active)
+						{
+							int other = (i == 0) ? 1 : 0;
+							BufferID otherBuf = tab->getBufferByIndex(other);
+							tab->activateBuffer(otherBuf);
+							ev->activateBuffer(otherBuf, false);
+						}
+						tab->deletItemAt(i);
+						break;
+					}
+				}
+			}
+			result = TRUE;
+			break;
+		}
+
 		case WM_EDITORGROUP_DEFERRED_REMOVE:
 		{
 			BufferID bufToRemove = reinterpret_cast<BufferID>(wParam);
